@@ -1,8 +1,0 @@
-{
-  "name": "sa-cowork-runtime",
-  "version": "2.80.0",
-  "description": "Minimal Cowork smoke plugin that writes and reads a file from CLAUDE_PLUGIN_DATA",
-  "author": {
-    "name": "StashAway Engineering"
-  }
-}

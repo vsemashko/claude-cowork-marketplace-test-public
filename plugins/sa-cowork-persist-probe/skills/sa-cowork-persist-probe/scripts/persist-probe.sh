@@ -8,7 +8,7 @@ if [ -z "${PLUGIN_DATA}" ]; then
   exit 1
 fi
 
-STORE_DIR="${PLUGIN_DATA}/plugin-data-smoke"
+STORE_DIR="${PLUGIN_DATA}/persist-probe"
 STORE_FILE="${STORE_DIR}/persisted-value.txt"
 
 mkdir -p "${STORE_DIR}"

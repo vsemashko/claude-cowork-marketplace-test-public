@@ -1,9 +1,9 @@
 ---
-name: sa-cowork-plugin-data-smoke
-description: Minimal Cowork persistence smoke test for CLAUDE_PLUGIN_DATA.
+name: sa-cowork-persist-probe
+description: Minimal Cowork persistence probe for CLAUDE_PLUGIN_DATA.
 ---
 
-# Cowork Plugin Data Smoke
+# Cowork Persist Probe
 
 Use this skill to test whether `CLAUDE_PLUGIN_DATA` persists across Cowork restarts.
 
@@ -12,7 +12,7 @@ Use this skill to test whether `CLAUDE_PLUGIN_DATA` persists across Cowork resta
 1. Run the bundled script:
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/skills/sa-cowork-plugin-data-smoke/scripts/plugin-data-smoke.sh $ARGUMENTS
+${CLAUDE_PLUGIN_ROOT}/skills/sa-cowork-persist-probe/scripts/persist-probe.sh $ARGUMENTS
 ```
 
 2. If the user supplied a value, tell them it was written successfully and show the file path.
@@ -22,4 +22,4 @@ ${CLAUDE_PLUGIN_ROOT}/skills/sa-cowork-plugin-data-smoke/scripts/plugin-data-smo
 
 ## Expected File
 
-`${CLAUDE_PLUGIN_DATA}/plugin-data-smoke/persisted-value.txt`
+`${CLAUDE_PLUGIN_DATA}/persist-probe/persisted-value.txt`

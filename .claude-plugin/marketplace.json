@@ -9,11 +9,11 @@
   },
   "plugins": [
     {
-      "name": "sa-cowork-runtime",
-      "description": "Minimal Cowork smoke plugin that writes and reads a file from CLAUDE_PLUGIN_DATA",
+      "name": "sa-cowork-persist-probe",
+      "description": "Minimal Cowork probe plugin that writes and reads a file from CLAUDE_PLUGIN_DATA",
       "version": "2.80.0",
       "category": "core",
-      "source": "./plugins/sa-cowork-runtime",
+      "source": "./plugins/sa-cowork-persist-probe",
       "author": {
         "name": "StashAway Engineering",
         "email": "vladimir.semashko@stashaway.com"

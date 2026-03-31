@@ -1,12 +1,12 @@
 ---
-name: sa-cowork-plugin-data-smoke
+name: sa-cowork-persist-probe
 description: Write a value into CLAUDE_PLUGIN_DATA or read the stored value back
 argument-hint: '[value]'
 ---
 
-# Cowork Plugin Data Smoke
+# Cowork Persist Probe
 
-Use the **sa-cowork-plugin-data-smoke** skill.
+Use the **sa-cowork-persist-probe** skill.
 
 ## Behavior
 
@@ -17,5 +17,5 @@ Use the **sa-cowork-plugin-data-smoke** skill.
 ## Run
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/skills/sa-cowork-plugin-data-smoke/scripts/plugin-data-smoke.sh $ARGUMENTS
+${CLAUDE_PLUGIN_ROOT}/skills/sa-cowork-persist-probe/scripts/persist-probe.sh $ARGUMENTS
 ```
