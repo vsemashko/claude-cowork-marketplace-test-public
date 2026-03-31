@@ -35,7 +35,7 @@ async function handleRequest(request: JsonRpcRequest): Promise<void> {
         protocolVersion: '2024-11-05',
         capabilities: { tools: {} },
         serverInfo: {
-          name: 'cowork-secret-probe',
+          name: Deno.env.get('SA_COWORK_PROBE_NAME') || 'cowork-secret-probe',
           version: '1.0.0',
         },
       })
@@ -50,8 +50,7 @@ async function handleRequest(request: JsonRpcRequest): Promise<void> {
         tools: [
           {
             name: 'status',
-            description:
-              'Reports whether mapped Cowork userConfig and inherited plugin option env vars are present. Returns hashes only, never raw secrets.',
+            description: 'Reports which secret source reached this MCP server. Returns hashes and redacted previews only.',
             inputSchema: {
               type: 'object',
               properties: {},

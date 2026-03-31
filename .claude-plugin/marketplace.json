@@ -1,16 +1,16 @@
 {
-  "name": "stashaway-cowork-test-marketplace",
+  "name": "stashaway-cowork-test",
   "owner": {
     "name": "StashAway Engineering",
     "email": "vladimir.semashko@stashaway.com"
   },
   "metadata": {
-    "description": "Minimal Cowork marketplace test with only sa-cowork-runtime"
+    "description": "Minimal Cowork marketplace test plugin"
   },
   "plugins": [
     {
       "name": "sa-cowork-runtime",
-      "description": "Cowork runtime bootstrap and secret-management comparison harness for Claude/Cowork marketplace installs",
+      "description": "Cowork runtime bootstrap plus simple secret persistence and MCP auth probes",
       "version": "2.79.0",
       "category": "core",
       "source": "./plugins/sa-cowork-runtime",

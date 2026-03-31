@@ -1,5 +1,5 @@
-import { main } from '../../../shared/cowork-secret-harness.ts'
+import { resetPersistedSecret } from '../../../shared/cowork-secret-store.ts'
 
 if (import.meta.main) {
-  await main(['reset', ...Deno.args])
+  console.log(await resetPersistedSecret({ env: Deno.env.toObject(), now: new Date() }))
 }

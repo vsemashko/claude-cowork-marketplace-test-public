@@ -1,5 +1,5 @@
-import { main } from '../../../shared/cowork-secret-harness.ts'
+import { formatSecretStatus } from '../../../shared/cowork-secret-store.ts'
 
 if (import.meta.main) {
-  await main(['status', ...Deno.args])
+  console.log(await formatSecretStatus({ env: Deno.env.toObject(), now: new Date() }))
 }

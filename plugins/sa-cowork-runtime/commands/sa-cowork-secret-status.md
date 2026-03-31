@@ -1,8 +1,8 @@
 ---
 name: sa-cowork-secret-status
-description: Show the Cowork runtime cache state and redacted secret-test status
+description: Show whether the persisted Cowork secret file exists and whether the runtime cache survived a restart
 ---
 
 # SA Cowork Secret Status
 
-Use the **sa-cowork-secret-status** skill to print the redacted harness report.
+Use the **sa-cowork-secret-status** skill to report whether the simple persisted secret file is still present under `${CLAUDE_PLUGIN_DATA}`.

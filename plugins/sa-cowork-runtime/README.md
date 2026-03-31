@@ -4,7 +4,8 @@
 
 1. Bootstrapping `stash`, `mise`, and `deno` into `${CLAUDE_PLUGIN_DATA}/cowork-runtime`
 2. Reusing that cache across fresh Cowork shells
-3. Comparing multiple secret-management paths without depending on plugin settings UI
+3. Testing the simplest possible persisted secret file under `${CLAUDE_PLUGIN_DATA}`
+4. Comparing a few tiny MCP credential wiring variants without depending on plugin settings UI
 
 ## Expected Behavior by Install Path
 
@@ -23,51 +24,53 @@
 ## Commands
 
 - `/sa-cowork-install`
-- `/sa-cowork-secret-test-mcp`
-- `/sa-cowork-secret-test-form`
-- `/sa-cowork-secret-test-config`
-- `/sa-cowork-secret-test-connector`
+- `/sa-cowork-secret-write`
 - `/sa-cowork-secret-status`
 - `/sa-cowork-secret-reset`
+- `/sa-cowork-mcp-user-config`
+- `/sa-cowork-mcp-plugin-option`
+- `/sa-cowork-mcp-file`
+- `/sa-cowork-mcp-file-env`
 
-## Bundled MCP Probe
+Use the plain slash command names above in Cowork. Do not prefix them with `sa-cowork-runtime:`.
 
-The plugin also ships a bundled `cowork-secret-probe` MCP server for the native credential-provisioning path.
+## Simple Secret File Test
 
-- It maps optional `userConfig` values into MCP env vars
-- It reports whether those mapped vars were present in the MCP subprocess
-- It also reports whether inherited `CLAUDE_PLUGIN_OPTION_*` env vars were present
-- It never returns raw secrets, only presence and hashes
+`/sa-cowork-secret-write <secret>` stores the provided secret in:
 
-Use `/sa-cowork-secret-test-mcp` to tell Claude to call that MCP probe and summarize the redacted result.
+`$CLAUDE_PLUGIN_DATA/secret-smoke/persisted-secret.txt`
 
-## Secret Test Targets
+`/sa-cowork-secret-status` reports:
 
-### Form bridge
+- whether the file still exists
+- where it lives
+- a redacted preview and hash
+- whether the Cowork runtime cache still exists
 
-Writes a user-provided secret into a removable file target under `${HOME}/.sa-cowork-secret-harness`.
+`/sa-cowork-secret-reset` removes that file.
 
-- `env-file`
-- `json-file`
+## MCP Variants
 
-### Config bridge
+The plugin ships four tiny MCP servers, each exposing the same `status` tool:
 
-Writes a user-provided secret into a config surface that can be inspected later.
+- `cowork-secret-user-config` Tests explicit env mapping from `${user_config.smoke_*}`
+- `cowork-secret-plugin-option` Tests inherited `CLAUDE_PLUGIN_OPTION_*` env vars without explicit mapping
+- `cowork-secret-file` Tests direct file reads from plugin data
+- `cowork-secret-file-env` Tests passing the secret file path through `${CLAUDE_PLUGIN_DATA}` env interpolation
 
-- `claude-settings-mcp` writes a test-owned `mcpServers` entry into `~/.claude/settings.json`
-- `stash-setting` writes a namespaced test setting through `stash settings set` and is tracked as manual-cleanup only
-
-Plugin data keeps only hashes and redacted metadata for these tests.
+All MCP responses stay redacted. They never return the raw secret.
 
 ## Manual Validation Flow
 
 1. Install `sa-cowork-runtime`
 2. Run `/sa-cowork-install`
 3. Optionally set `smoke_label` / `smoke_token` if the install path exposes plugin settings
-4. Run `/sa-cowork-secret-test-mcp`
-5. Run `/sa-cowork-secret-test-form`
-6. Run `/sa-cowork-secret-test-config`
-7. Run `/sa-cowork-secret-test-connector`
-8. Run `/sa-cowork-secret-status`
-9. Start a fresh Cowork session and rerun `/sa-cowork-secret-status`
-10. Run `/sa-cowork-secret-reset` when done
+4. Run `/sa-cowork-secret-write <secret>`
+5. Run `/sa-cowork-secret-status`
+6. Start a fresh Cowork session and rerun `/sa-cowork-secret-status`
+7. Run each MCP command:
+   - `/sa-cowork-mcp-user-config`
+   - `/sa-cowork-mcp-plugin-option`
+   - `/sa-cowork-mcp-file`
+   - `/sa-cowork-mcp-file-env`
+8. Run `/sa-cowork-secret-reset` when done

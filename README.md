@@ -1,3 +1,3 @@
 # Cowork Marketplace Test
 
-Minimal Claude/Cowork marketplace repository for testing `sa-cowork-runtime` registration.
+This repo contains the minimal Cowork marketplace plugin bundle for `sa-cowork-runtime`.
