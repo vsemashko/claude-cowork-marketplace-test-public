@@ -1,19 +1,8 @@
 {
   "name": "sa-cowork-runtime",
-  "version": "2.79.0",
-  "description": "Cowork runtime bootstrap and secret-management comparison harness for Claude/Cowork marketplace installs",
+  "version": "2.80.0",
+  "description": "Minimal Cowork smoke plugin that writes and reads a file from CLAUDE_PLUGIN_DATA",
   "author": {
     "name": "StashAway Engineering"
-  },
-  "userConfig": {
-    "smoke_label": {
-      "description": "Optional observation label to check whether Cowork surfaces plugin settings for this install path",
-      "sensitive": false
-    },
-    "smoke_token": {
-      "description": "Optional observation token to verify whether plugin settings reach command environments",
-      "sensitive": true
-    }
-  },
-  "mcpServers": "./.mcp.json"
+  }
 }

@@ -5,13 +5,13 @@
     "email": "vladimir.semashko@stashaway.com"
   },
   "metadata": {
-    "description": "Minimal Cowork marketplace test plugin"
+    "description": "Minimal Cowork marketplace test plugin for CLAUDE_PLUGIN_DATA persistence"
   },
   "plugins": [
     {
       "name": "sa-cowork-runtime",
-      "description": "Cowork runtime bootstrap plus simple secret persistence and MCP auth probes",
-      "version": "2.79.0",
+      "description": "Minimal Cowork smoke plugin that writes and reads a file from CLAUDE_PLUGIN_DATA",
+      "version": "2.80.0",
       "category": "core",
       "source": "./plugins/sa-cowork-runtime",
       "author": {
