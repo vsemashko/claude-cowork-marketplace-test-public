@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "cowork-secret-probe": {
+      "type": "stdio",
+      "command": "${CLAUDE_PLUGIN_ROOT}/skills/sa-cowork-secret-probe/scripts/server.sh",
+      "env": {
+        "SA_COWORK_SMOKE_LABEL": "${user_config.smoke_label:}",
+        "SA_COWORK_SMOKE_TOKEN": "${user_config.smoke_token:}"
+      }
+    }
+  }
+}
