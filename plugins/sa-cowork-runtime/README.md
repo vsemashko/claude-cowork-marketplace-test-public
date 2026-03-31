@@ -31,6 +31,7 @@
 - `/sa-cowork-mcp-plugin-option`
 - `/sa-cowork-mcp-file`
 - `/sa-cowork-mcp-file-env`
+- `/sa-cowork-mcp-remote-oauth`
 
 Use the plain slash command names above in Cowork. Do not prefix them with `sa-cowork-runtime:`.
 
@@ -58,6 +59,10 @@ The plugin ships four tiny MCP servers, each exposing the same `status` tool:
 - `cowork-secret-file` Tests direct file reads from plugin data
 - `cowork-secret-file-env` Tests passing the secret file path through `${CLAUDE_PLUGIN_DATA}` env interpolation
 
+It also ships one remote hosted connector:
+
+- `cowork-remote-oauth-kernel` Tests whether Cowork exposes a real remote OAuth Connect flow for a hosted MCP server
+
 All MCP responses stay redacted. They never return the raw secret.
 
 ## Manual Validation Flow
@@ -73,4 +78,5 @@ All MCP responses stay redacted. They never return the raw secret.
    - `/sa-cowork-mcp-plugin-option`
    - `/sa-cowork-mcp-file`
    - `/sa-cowork-mcp-file-env`
+   - `/sa-cowork-mcp-remote-oauth`
 8. Run `/sa-cowork-secret-reset` when done

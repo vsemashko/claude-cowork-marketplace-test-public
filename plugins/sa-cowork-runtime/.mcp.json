@@ -17,6 +17,10 @@
         "SA_COWORK_SECRET_FILE": "${CLAUDE_PLUGIN_DATA}/secret-smoke/persisted-secret.txt"
       }
     },
+    "cowork-remote-oauth-kernel": {
+      "type": "http",
+      "url": "https://mcp.onkernel.com/mcp"
+    },
     "cowork-secret-user-config": {
       "type": "stdio",
       "command": "${CLAUDE_PLUGIN_ROOT}/skills/sa-cowork-secret-probe/scripts/server.sh",
