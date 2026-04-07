@@ -12,7 +12,8 @@ Use this skill to test whether `CLAUDE_PLUGIN_DATA` persists across Cowork resta
 1. Run the bundled script:
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/skills/sa-cowork-persist-probe/scripts/persist-probe.sh $ARGUMENTS
+CLAUDE_PLUGIN_DATA="${CLAUDE_PLUGIN_DATA}" \
+  ${CLAUDE_PLUGIN_ROOT}/skills/sa-cowork-persist-probe/scripts/persist-probe.sh $ARGUMENTS
 ```
 
 2. If the user supplied a value, tell them it was written successfully and show the file path.

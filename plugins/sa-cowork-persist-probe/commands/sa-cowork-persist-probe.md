@@ -17,5 +17,6 @@ Use the **sa-cowork-persist-probe** skill.
 ## Run
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/skills/sa-cowork-persist-probe/scripts/persist-probe.sh $ARGUMENTS
+CLAUDE_PLUGIN_DATA="${CLAUDE_PLUGIN_DATA}" \
+  ${CLAUDE_PLUGIN_ROOT}/skills/sa-cowork-persist-probe/scripts/persist-probe.sh $ARGUMENTS
 ```
