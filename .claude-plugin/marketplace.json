@@ -23,7 +23,7 @@
     {
       "name": "sa-cowork-bin-probe",
       "description": "Verifies plugin-root and marketplace-root binaries via cross-plugin paths",
-      "version": "1.0.0",
+      "version": "1.0.1",
       "category": "core",
       "source": "./plugins/sa-cowork-bin-probe",
       "author": {

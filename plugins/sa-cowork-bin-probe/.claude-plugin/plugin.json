@@ -1,6 +1,6 @@
 {
   "name": "sa-cowork-bin-probe",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "Verifies plugin-root and marketplace-root binaries via cross-plugin paths",
   "author": {
     "name": "StashAway Engineering"
