@@ -1,23 +1,8 @@
 {
   "name": "sa-cowork-bin-probe",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Verifies plugin-root and marketplace-root binaries via cross-plugin paths",
   "author": {
     "name": "StashAway Engineering"
-  },
-  "userConfig": {
-    "dd_api_key": {
-      "description": "Datadog API key (for dd-pup or dogstatsd)",
-      "sensitive": true
-    },
-    "dd_site": {
-      "description": "Datadog site (e.g. datadoghq.com, datadoghq.eu)",
-      "sensitive": false,
-      "default": "datadoghq.com"
-    },
-    "gitlab_token": {
-      "description": "GitLab personal access token (for glab CLI)",
-      "sensitive": true
-    }
   }
 }

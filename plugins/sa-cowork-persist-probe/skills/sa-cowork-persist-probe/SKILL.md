@@ -21,17 +21,6 @@ CLAUDE_PLUGIN_DATA="${CLAUDE_PLUGIN_DATA}" \
    - the stored value, or
    - a message that no persisted value exists yet
 
-## Configuration
-
-This plugin uses `userConfig` to prompt for values at install time:
-
-- **`probe_label`** (non-sensitive, default `QWE`): Prefix for auto-generated persisted values.
-  The SessionStart hook uses this as the label before the 3 random digits.
-  Available in skills as `${user_config.probe_label}` and in scripts as `$CLAUDE_PLUGIN_OPTION_PROBE_LABEL`.
-
-- **`probe_secret`** (sensitive): A secret token stored in the system keychain.
-  Available in scripts as `$CLAUDE_PLUGIN_OPTION_PROBE_SECRET` but NOT substituted into skill content.
-
 ## Expected File
 
 `${CLAUDE_PLUGIN_DATA}/persist-probe/persisted-value.txt`

@@ -5,14 +5,14 @@
     "email": "vladimir.semashko@stashaway.com"
   },
   "metadata": {
-    "description": "Minimal Cowork marketplace test plugin for CLAUDE_PLUGIN_DATA persistence",
-    "version": "1.1.0"
+    "description": "Cowork marketplace test: persistence, binaries, and MCPB extensions",
+    "version": "2.0.0"
   },
   "plugins": [
     {
       "name": "sa-cowork-persist-probe",
       "description": "Minimal Cowork probe plugin that writes and reads a file from CLAUDE_PLUGIN_DATA",
-      "version": "2.80.4",
+      "version": "2.80.5",
       "category": "core",
       "source": "./plugins/sa-cowork-persist-probe",
       "author": {
@@ -23,7 +23,7 @@
     {
       "name": "sa-cowork-bin-probe",
       "description": "Verifies plugin-root and marketplace-root binaries via cross-plugin paths",
-      "version": "1.0.2",
+      "version": "1.0.3",
       "category": "core",
       "source": "./plugins/sa-cowork-bin-probe",
       "author": {
