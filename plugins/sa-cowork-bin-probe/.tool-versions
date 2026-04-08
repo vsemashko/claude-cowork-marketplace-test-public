@@ -1,0 +1,5 @@
+# asdf tool versions for StashAway Agent Recipes
+# Install asdf and plugins, then run: asdf install
+
+# Deno runtime (required for CLI)
+deno 2.6.8

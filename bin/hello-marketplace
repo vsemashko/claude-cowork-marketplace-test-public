@@ -1,0 +1,4 @@
+#!/bin/sh
+echo "hello from marketplace-root bin"
+echo "  path : $0"
+echo "  name : ${1:-<none>}"

@@ -24,3 +24,21 @@ CLAUDE_PLUGIN_DATA="${CLAUDE_PLUGIN_DATA}" \
 ## Expected File
 
 `${CLAUDE_PLUGIN_DATA}/persist-probe/persisted-value.txt`
+
+## Binaries
+
+This plugin ships an executable at `${CLAUDE_PLUGIN_ROOT}/bin/hello-persist-probe`.
+
+**Plugin binary** (always available):
+
+```bash
+${CLAUDE_PLUGIN_ROOT}/bin/hello-persist-probe "<name>"
+```
+
+**Marketplace-root binary** (Cowork only — two levels above this plugin):
+
+```bash
+${CLAUDE_PLUGIN_ROOT}/../../bin/hello-marketplace "<name>"
+```
+
+Both print a greeting, the resolved path, and the name you passed.

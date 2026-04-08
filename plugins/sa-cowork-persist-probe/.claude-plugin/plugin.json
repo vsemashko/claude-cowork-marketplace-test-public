@@ -1,6 +1,6 @@
 {
   "name": "sa-cowork-persist-probe",
-  "version": "2.80.1",
+  "version": "2.80.2",
   "description": "Minimal Cowork probe plugin that writes and reads a file from CLAUDE_PLUGIN_DATA",
   "author": {
     "name": "StashAway Engineering"

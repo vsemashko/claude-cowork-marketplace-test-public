@@ -11,9 +11,20 @@
     {
       "name": "sa-cowork-persist-probe",
       "description": "Minimal Cowork probe plugin that writes and reads a file from CLAUDE_PLUGIN_DATA",
-      "version": "2.80.1",
+      "version": "2.80.2",
       "category": "core",
       "source": "./plugins/sa-cowork-persist-probe",
+      "author": {
+        "name": "StashAway Engineering",
+        "email": "vladimir.semashko@stashaway.com"
+      }
+    },
+    {
+      "name": "sa-cowork-bin-probe",
+      "description": "Verifies plugin-root and marketplace-root binaries via cross-plugin paths",
+      "version": "1.0.0",
+      "category": "core",
+      "source": "./plugins/sa-cowork-bin-probe",
       "author": {
         "name": "StashAway Engineering",
         "email": "vladimir.semashko@stashaway.com"
