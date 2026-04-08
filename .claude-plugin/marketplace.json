@@ -12,7 +12,7 @@
     {
       "name": "sa-cowork-persist-probe",
       "description": "Minimal Cowork probe plugin that writes and reads a file from CLAUDE_PLUGIN_DATA",
-      "version": "2.80.5",
+      "version": "2.80.6",
       "category": "core",
       "source": "./plugins/sa-cowork-persist-probe",
       "author": {

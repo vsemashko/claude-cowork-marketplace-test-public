@@ -1,8 +1,22 @@
 {
   "name": "sa-cowork-persist-probe",
-  "version": "2.80.5",
+  "version": "2.80.6",
   "description": "Minimal Cowork probe plugin that writes and reads a file from CLAUDE_PLUGIN_DATA",
   "author": {
     "name": "StashAway Engineering"
+  },
+  "userConfig": {
+    "probe_label": {
+      "type": "string",
+      "title": "Probe Label",
+      "description": "Label prefix for persisted values (e.g. 'QWE')",
+      "default": "QWE"
+    },
+    "probe_secret": {
+      "type": "string",
+      "title": "Probe Secret",
+      "description": "Secret token to verify sensitive storage works",
+      "sensitive": true
+    }
   }
 }

@@ -8,9 +8,10 @@ if [ -s "${STORE_FILE}" ]; then
   exit 0
 fi
 
-# Generate QWE + 3 random digits
+# Use the configured label (from userConfig) or default to QWE
+LABEL="${CLAUDE_PLUGIN_OPTION_PROBE_LABEL:-QWE}"
 RANDOM_NUM=$(awk 'BEGIN{srand(); printf "%03d", int(rand()*900)+100}')
-VALUE="QWE${RANDOM_NUM}"
+VALUE="${LABEL}${RANDOM_NUM}"
 
 # Store using the persist-probe script
 "${CLAUDE_PLUGIN_ROOT}/skills/sa-cowork-persist-probe/scripts/persist-probe.sh" "${VALUE}"
