@@ -5,7 +5,8 @@
     "email": "vladimir.semashko@stashaway.com"
   },
   "metadata": {
-    "description": "Minimal Cowork marketplace test plugin for CLAUDE_PLUGIN_DATA persistence"
+    "description": "Minimal Cowork marketplace test plugin for CLAUDE_PLUGIN_DATA persistence",
+    "version": "1.0.0"
   },
   "plugins": [
     {
