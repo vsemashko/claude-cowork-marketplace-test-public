@@ -10,7 +10,7 @@ const EXTENSION_BRIDGE_FILE = join(process.env.HOME || "/tmp", ".cowork-probe", 
 
 const server = new McpServer({
   name: "sa-cowork-persist-probe-mcp",
-  version: "1.1.0",
+  version: "1.2.0",
 });
 
 server.tool(
@@ -52,19 +52,17 @@ server.tool(
 
 server.tool(
   "check_config",
-  "Report which user_config values are available to this MCP server.",
+  "Report which user_config values are available to this MCP server, including the raw secret for local testing.",
   {},
   async () => {
-    const configs = [
-      { key: "PROBE_LABEL", sensitive: false },
-      { key: "PROBE_SECRET", sensitive: true },
+    const label = process.env.PROBE_LABEL || "";
+    const secret = process.env.PROBE_SECRET || "";
+    const lines = [
+      label ? `PROBE_LABEL: ${label}` : `PROBE_LABEL: NOT SET`,
+      secret ? `PROBE_SECRET: ${secret}` : `PROBE_SECRET: NOT SET`,
+      `PROBE_SECRET_PRESENT: ${String(Boolean(secret)).toLowerCase()}`,
+      `PROBE_SECRET_LENGTH: ${secret.length}`,
     ];
-    const lines = configs.map(({ key, sensitive }) => {
-      const value = process.env[key];
-      if (!value) return `${key}: NOT SET`;
-      if (sensitive) return `${key}: SET (length ${value.length})`;
-      return `${key}: ${value}`;
-    });
     return { content: [{ type: "text", text: lines.join("\n") }] };
   }
 );
@@ -101,6 +99,7 @@ server.tool(
             `bridge_file=${EXTENSION_BRIDGE_FILE}`,
             `source=${data.source || "unknown"}`,
             `probe_label=${data.probe_label || ""}`,
+            `probe_secret=${data.probe_secret || ""}`,
             `probe_secret_present=${String(Boolean(data.probe_secret_present)).toLowerCase()}`,
             `probe_secret_length=${Number(data.probe_secret_length || 0)}`,
           ].join("\n"),

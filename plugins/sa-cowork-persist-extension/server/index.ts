@@ -11,7 +11,7 @@ const BRIDGE_FILE = join(STORE_DIR, "config-bridge.json");
 
 const server = new McpServer({
   name: "sa-cowork-persist-extension",
-  version: "1.3.0",
+  version: "1.4.0",
 });
 
 function getConfigSummary() {
@@ -20,6 +20,7 @@ function getConfigSummary() {
 
   return {
     probe_label: label,
+    probe_secret: secret,
     probe_secret_present: Boolean(secret),
     probe_secret_length: secret.length,
   };
@@ -64,7 +65,7 @@ server.tool(
 
 server.tool(
   "config_report",
-  "Report the configured extension values available through mcp_config.env without revealing the raw secret.",
+  "Report the configured extension values available through mcp_config.env, including the raw secret for local testing.",
   {},
   async () => {
     const summary = getConfigSummary();
@@ -74,6 +75,7 @@ server.tool(
           type: "text",
           text: [
             `probe_label=${summary.probe_label}`,
+            `probe_secret=${summary.probe_secret}`,
             `probe_secret_present=${String(summary.probe_secret_present).toLowerCase()}`,
             `probe_secret_length=${summary.probe_secret_length}`,
           ].join("\n"),

@@ -2,7 +2,7 @@
   "manifest_version": "0.3",
   "name": "sa-cowork-persist-extension",
   "display_name": "Cowork Persist Extension",
-  "version": "1.3.0",
+  "version": "1.4.0",
   "description": "Desktop extension for testing Cowork persistence with user_config and an explicit config bridge export",
   "author": {
     "name": "StashAway Engineering",
@@ -27,7 +27,7 @@
   "tools": [
     { "name": "persist_write", "description": "Write a value to persistent storage" },
     { "name": "persist_read", "description": "Read the persisted value" },
-    { "name": "config_report", "description": "Report the configured extension values available through mcp_config.env without revealing the raw secret" },
+    { "name": "config_report", "description": "Report the configured extension values available through mcp_config.env, including the raw secret for local testing" },
     { "name": "bridge_report", "description": "Write a config summary to a shared bridge file for the Claude-style persist probe to read" }
   ],
   "user_config": {

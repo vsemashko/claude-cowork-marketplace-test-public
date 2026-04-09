@@ -59,7 +59,7 @@ The only reliable bridge is an explicit shared storage path or another deliberat
 
 `sa-cowork-persist-extension` exposes:
 
-- `config_report` to prove the extension received its configured values directly from `user_config`
+- `config_report` to prove the extension received its configured values directly from `user_config`, including the raw secret for local testing
 - `bridge_report` to write a config summary to:
 
 ```text
@@ -109,7 +109,7 @@ Expected result:
 
 - writing without arguments persists a generated value into `${CLAUDE_PLUGIN_DATA}/persist-probe/persisted-value.txt`
 - reading later returns the same value
-- `check_config` reports the plugin MCP server's own configured values
+- `check_config` reports the plugin MCP server's own configured values from `userConfig`, including the raw secret for local testing
 - `read_extension_bridge` reports the companion extension bridge status and tells the user to run `config_report` or `bridge_report` if the bridge is missing
 
 ### Desktop Extension Bridge
@@ -130,6 +130,7 @@ If the bridge worked, the plugin MCP tool reports:
 - `bridge_found=true`
 - `source=sa-cowork-persist-extension`
 - `probe_label=<configured value>`
+- `probe_secret=<configured value>`
 - `probe_secret_present=true|false`
 - `probe_secret_length=<number>`
 
@@ -146,3 +147,4 @@ If the bridge has not been written yet, `read_extension_bridge` returns:
 - The Claude-style persist probe stores its own data under `${CLAUDE_PLUGIN_DATA}/persist-probe/`.
 - Those two locations are intentionally different so the repo can show the difference between isolated plugin state and an explicit shared bridge.
 - The MCP-native inspection path is the preferred proof flow; the shell bridge-reader script is fallback-only.
+- `config_report`, `check_config`, and `read_extension_bridge` now expose the raw secret because this repo is a local test harness, not a production-safe integration.

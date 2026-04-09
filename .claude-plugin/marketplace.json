@@ -6,13 +6,13 @@
   },
   "metadata": {
     "description": "Cowork marketplace test: bootstrap and persistence probes plus one MCPB persistence experiment",
-    "version": "3.1.0"
+    "version": "3.2.0"
   },
   "plugins": [
     {
       "name": "sa-cowork-persist-probe",
-      "description": "Minimal Cowork probe plugin that persists a value, reports its config, and can inspect an explicit bridge file exported by the persist extension",
-      "version": "2.82.0",
+      "description": "Minimal Cowork probe plugin that persists a value, reports its userConfig env values, and can inspect an explicit bridge file exported by the persist extension",
+      "version": "2.83.0",
       "category": "core",
       "source": "./plugins/sa-cowork-persist-probe",
       "author": {

@@ -9,13 +9,14 @@ const STORE_FILE = join(STORE_DIR, "persisted-value.txt");
 const BRIDGE_FILE = join(STORE_DIR, "config-bridge.json");
 const server = new McpServer({
     name: "sa-cowork-persist-extension",
-    version: "1.3.0",
+    version: "1.4.0",
 });
 function getConfigSummary() {
     const label = process.env.PROBE_LABEL || "QWE";
     const secret = process.env.PROBE_SECRET || "";
     return {
         probe_label: label,
+        probe_secret: secret,
         probe_secret_present: Boolean(secret),
         probe_secret_length: secret.length,
     };
@@ -44,7 +45,7 @@ server.tool("persist_read", "Read the persisted value from storage.", {}, async 
     }
     return { content: [{ type: "text", text: `Stored value: ${value}` }] };
 });
-server.tool("config_report", "Report the configured extension values available through mcp_config.env without revealing the raw secret.", {}, async () => {
+server.tool("config_report", "Report the configured extension values available through mcp_config.env, including the raw secret for local testing.", {}, async () => {
     const summary = getConfigSummary();
     return {
         content: [
@@ -52,6 +53,7 @@ server.tool("config_report", "Report the configured extension values available t
                 type: "text",
                 text: [
                     `probe_label=${summary.probe_label}`,
+                    `probe_secret=${summary.probe_secret}`,
                     `probe_secret_present=${String(summary.probe_secret_present).toLowerCase()}`,
                     `probe_secret_length=${summary.probe_secret_length}`,
                 ].join("\n"),
