@@ -1,0 +1,24 @@
+{
+  "name": "sa-tmp-core",
+  "version": "1.0.0",
+  "description": "Temporary Cowork core plugin with a session-start file, a local MCP, and list/set test skills.",
+  "author": {
+    "name": "StashAway Engineering"
+  },
+  "skills": "./skills/",
+  "commands": "./commands/",
+  "userConfig": {
+    "tmp_public_value": {
+      "type": "string",
+      "title": "Temporary Public Value",
+      "description": "Non-secret test value written by the session-start hook and exposed by the local MCP.",
+      "default": "plugin-public-default"
+    },
+    "tmp_secret_value": {
+      "type": "string",
+      "title": "Temporary Secret Value",
+      "description": "Secret test value written by the session-start hook and exposed by the local MCP.",
+      "sensitive": true
+    }
+  }
+}

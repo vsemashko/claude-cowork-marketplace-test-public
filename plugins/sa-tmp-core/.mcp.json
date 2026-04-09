@@ -1,0 +1,19 @@
+{
+  "mcpServers": {
+    "sa-local-mcp": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/mcp-servers/sa-local-mcp.mjs"],
+      "env": {
+        "TMP_PUBLIC_VALUE": "${user_config.tmp_public_value}",
+        "TMP_SECRET_VALUE": "${user_config.tmp_secret_value}",
+        "TMP_PLUGIN_DATA": "${CLAUDE_PLUGIN_DATA}"
+      },
+      "_meta": {
+        "name": "sa-local-mcp",
+        "description": "Local MCP used by sa-tmp-core for set/get/get_all testing.",
+        "enabled": true
+      }
+    }
+  }
+}

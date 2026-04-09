@@ -1,0 +1,55 @@
+{
+  "manifest_version": "0.3",
+  "name": "sa-extension",
+  "display_name": "SA Extension",
+  "version": "1.0.0",
+  "description": "Companion desktop extension for temporary Cowork testing.",
+  "author": {
+    "name": "StashAway Engineering",
+    "url": "https://github.com/vsemashko"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vsemashko/claude-cowork-marketplace-test-public"
+  },
+  "server": {
+    "type": "node",
+    "entry_point": "server/index.mjs",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/server/index.mjs"],
+      "env": {
+        "EXTENSION_PUBLIC_VALUE": "${user_config.extension_public_value}",
+        "EXTENSION_SECRET_VALUE": "${user_config.extension_secret_value}"
+      }
+    }
+  },
+  "tools": [
+    { "name": "set_value", "description": "Store a value in the extension" },
+    { "name": "get_value", "description": "Read the stored extension value" },
+    { "name": "get_all", "description": "Return the configured extension values and the stored value" }
+  ],
+  "user_config": {
+    "extension_public_value": {
+      "type": "string",
+      "title": "Extension Public Value",
+      "description": "Non-secret test value exposed by the extension.",
+      "required": false,
+      "default": "extension-public-default"
+    },
+    "extension_secret_value": {
+      "type": "string",
+      "title": "Extension Secret Value",
+      "description": "Secret test value exposed by the extension.",
+      "required": false,
+      "sensitive": true
+    }
+  },
+  "keywords": ["cowork", "test", "extension"],
+  "license": "MIT",
+  "compatibility": {
+    "claude_desktop": ">=0.11.0",
+    "platforms": ["darwin", "win32", "linux"],
+    "runtimes": { "node": ">=18.0.0" }
+  }
+}

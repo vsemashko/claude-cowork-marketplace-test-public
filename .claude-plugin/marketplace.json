@@ -1,31 +1,20 @@
 {
-  "name": "stashaway-cowork-test",
+  "name": "stashaway-tmp-marketplace",
   "owner": {
     "name": "StashAway Engineering",
     "email": "vladimir.semashko@stashaway.com"
   },
   "metadata": {
-    "description": "Cowork marketplace test: bootstrap and persistence probes plus one MCPB persistence experiment",
-    "version": "3.2.0"
+    "description": "Temporary Cowork marketplace with one core plugin and one companion extension",
+    "version": "4.0.0"
   },
   "plugins": [
     {
-      "name": "sa-cowork-persist-probe",
-      "description": "Minimal Cowork probe plugin that persists a value, reports its userConfig env values, and can inspect an explicit bridge file exported by the persist extension",
-      "version": "2.83.0",
+      "name": "sa-tmp-core",
+      "description": "Temporary Cowork core plugin with a session-start file, a local MCP, and two test skills",
+      "version": "1.0.0",
       "category": "core",
-      "source": "./plugins/sa-cowork-persist-probe",
-      "author": {
-        "name": "StashAway Engineering",
-        "email": "vladimir.semashko@stashaway.com"
-      }
-    },
-    {
-      "name": "sa-cowork-bootstrap-probe",
-      "description": "Self-contained Cowork bootstrap probe that installs its own bundled CLI into CLAUDE_PLUGIN_DATA",
-      "version": "1.1.0",
-      "category": "core",
-      "source": "./plugins/sa-cowork-bootstrap-probe",
+      "source": "./plugins/sa-tmp-core",
       "author": {
         "name": "StashAway Engineering",
         "email": "vladimir.semashko@stashaway.com"

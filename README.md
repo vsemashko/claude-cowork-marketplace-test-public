@@ -1,150 +1,103 @@
-# Cowork Marketplace Test
+# Temporary Cowork Marketplace
 
-This repo now keeps only three artifacts:
+This repo is now intentionally minimal:
 
-- `sa-cowork-bootstrap-probe`
-- `sa-cowork-persist-probe`
-- `sa-cowork-persist-extension`
+- `sa-tmp-core` — one Claude-style marketplace plugin
+- `sa-extension` — one companion desktop extension packaged as `.mcpb`
 
-The first two are Claude-style plugins exposed through the repo marketplace. The third is a desktop extension bundle source that should be packaged as an `.mcpb` file and installed directly in Claude Desktop.
+`sa-tmp-core` includes:
 
-## What Stays
+- a `SessionStart` hook that writes the plugin user settings into `${CLAUDE_PLUGIN_DATA}/tmp-core/session-start.json`
+- one local MCP server named `sa-local-mcp`
+- two skills/commands: `sa-tmp-list` and `sa-tmp-set`
 
-| Artifact | Format | Purpose | Config path |
-| --- | --- | --- | --- |
-| `sa-cowork-bootstrap-probe` | `.claude-plugin` | Self-contained bootstrap probe that installs its own bundled CLI into `CLAUDE_PLUGIN_DATA` | `userConfig` |
-| `sa-cowork-persist-probe` | `.claude-plugin` | Persists a value inside `CLAUDE_PLUGIN_DATA`, reports its own config, and can read an explicit bridge file exported by the desktop extension | `userConfig` |
-| `sa-cowork-persist-extension` | `manifest.json` / desktop extension | Persist probe for extension-format experiments | `user_config` |
+`sa-extension` includes:
 
-The GitHub marketplace index only advertises the two `.claude-plugin` entries because that is the path Cowork currently ingests reliably from this repo.
+- `set_value`
+- `get_value`
+- `get_all`
 
-## Install The Desktop Extension
+## Plugin Config
 
-`sa-cowork-persist-extension` is not installed through the marketplace tab. Package it first, then install the resulting `.mcpb` file from Claude Desktop.
+`sa-tmp-core` exposes these plugin `userConfig` values:
 
-### 1. Pack the extension
+- `tmp_public_value`
+- `tmp_secret_value`
+
+The session-start hook writes both values into:
+
+```text
+${CLAUDE_PLUGIN_DATA}/tmp-core/session-start.json
+```
+
+The local MCP server `sa-local-mcp` also receives those same values through its env.
+
+## Extension Config
+
+`sa-extension` exposes these extension `user_config` values:
+
+- `extension_public_value`
+- `extension_secret_value`
+
+Its `get_all` tool returns:
+
+- the configured public value
+- the configured secret value
+- the last value written via `set_value`
+
+## Install The Extension
+
+`sa-extension` is not installed from the marketplace tab. Package it first, then install the resulting `.mcpb` file from Claude Desktop.
 
 From the repo root:
 
 ```bash
-npx -y @anthropic-ai/mcpb validate plugins/sa-cowork-persist-extension/manifest.json
-npx -y @anthropic-ai/mcpb pack plugins/sa-cowork-persist-extension dist/sa-cowork-persist-extension.mcpb
+npx -y @anthropic-ai/mcpb validate plugins/sa-extension/manifest.json
+npx -y @anthropic-ai/mcpb pack plugins/sa-extension dist/sa-extension.mcpb
 ```
 
-### 2. Install it in Claude Desktop
+Then in Claude Desktop:
 
-1. Open `Settings > Extensions`.
-2. Open `Advanced settings`.
-3. Under the extension developer area, click `Install Extension...`.
-4. Select `dist/sa-cowork-persist-extension.mcpb`.
-5. Fill in `Probe Label` and `Probe Secret` when prompted.
+1. Open `Settings > Extensions`
+2. Open `Advanced settings`
+3. Click `Install Extension...`
+4. Select `dist/sa-extension.mcpb`
+5. Fill in `Extension Public Value` and `Extension Secret Value`
 
-Anthropic’s desktop extension docs describe the same flow:
+## Test Flow
 
-- [Getting Started with Local MCP Servers on Claude Desktop](https://support.claude.com/en/articles/10949351-getting-started-with-local-mcp-servers-on-claude-desktop)
+### `sa-tmp-list`
 
-## Config Isolation
-
-The main outcome from this repo is still:
-
-- `.claude-plugin` `userConfig` values are injected into that plugin's own hooks, skills, and subprocesses
-- desktop extension `user_config` values are injected into that extension server's own `mcp_config.env`
-- there is no automatic cross-plugin or cross-format bridge between those two config systems
-
-So if you configure `probe_label` in `sa-cowork-persist-extension`, the value does **not** magically appear in `sa-cowork-persist-probe` or `sa-cowork-bootstrap-probe`.
-
-The only reliable bridge is an explicit shared storage path or another deliberate handoff.
-
-## Explicit Bridge Experiment
-
-`sa-cowork-persist-extension` exposes:
-
-- `config_report` to prove the extension received its configured values directly from `user_config`, including the raw secret for local testing
-- `bridge_report` to write a config summary to:
+Use:
 
 ```text
-~/.cowork-probe/persist-probe/config-bridge.json
+/sa-tmp-list
 ```
 
-`sa-cowork-persist-probe` exposes `read_extension_bridge` to inspect that file from the plugin side. The shell script reader remains only as a debugging fallback.
+Expected behavior:
 
-This demonstrates:
+1. Read `${CLAUDE_PLUGIN_DATA}/tmp-core/session-start.json`
+2. Call `sa-local-mcp` `get_all`
+3. Call `sa-extension` `get_all` if the extension is installed
+4. Print all three results
 
-- automatic config sharing: **no**
-- explicit shared-file bridge: **yes**
+### `sa-tmp-set`
 
-## Testing In Cowork
-
-Use the plugin skills or commands rather than the raw connector pane.
-
-### Bootstrap Probe
-
-Run:
+Use:
 
 ```text
-/sa-cowork-bootstrap-probe
+/sa-tmp-set [value]
 ```
 
-Or prompt:
+Expected behavior:
 
-```text
-Use the cowork-bootstrap-probe connector and run report_env, report_cache, run_probe, then report_cache again.
-```
-
-Expected result:
-
-- the bundled CLI is copied into `${CLAUDE_PLUGIN_DATA}/bootstrap/bin`
-- `run_probe` executes the cached CLI
-- `report_cache` shows the install marker
-
-### Persist Probe
-
-Run:
-
-```text
-/sa-cowork-persist-probe
-```
-
-Expected result:
-
-- writing without arguments persists a generated value into `${CLAUDE_PLUGIN_DATA}/persist-probe/persisted-value.txt`
-- reading later returns the same value
-- `check_config` reports the plugin MCP server's own configured values from `userConfig`, including the raw secret for local testing
-- `read_extension_bridge` reports the companion extension bridge status and tells the user to run `config_report` or `bridge_report` if the bridge is missing
-
-### Desktop Extension Bridge
-
-After installing and configuring `sa-cowork-persist-extension`, call:
-
-- `config_report`
-- `persist_write`
-- `persist_read`
-- `bridge_report`
-
-Then, from `sa-cowork-persist-probe`, call:
-
-- `read_extension_bridge`
-
-If the bridge worked, the plugin MCP tool reports:
-
-- `bridge_found=true`
-- `source=sa-cowork-persist-extension`
-- `probe_label=<configured value>`
-- `probe_secret=<configured value>`
-- `probe_secret_present=true|false`
-- `probe_secret_length=<number>`
-
-If the bridge has not been written yet, `read_extension_bridge` returns:
-
-- `bridge_found=false`
-- the expected bridge path
-- a next step telling the user to run `config_report` or `bridge_report`
+1. If a value is provided, use it
+2. Otherwise default to the plugin `tmp_public_value`
+3. Call `sa-extension` `set_value`
+4. Call `sa-extension` `get_value`
+5. Print the final extension value
 
 ## Notes
 
-- The bootstrap plugin is fully self-contained; it no longer depends on `plugins/_shared/cli-probe`.
-- The desktop extension stores data under `~/.cowork-probe/persist-probe/`.
-- The Claude-style persist probe stores its own data under `${CLAUDE_PLUGIN_DATA}/persist-probe/`.
-- Those two locations are intentionally different so the repo can show the difference between isolated plugin state and an explicit shared bridge.
-- The MCP-native inspection path is the preferred proof flow; the shell bridge-reader script is fallback-only.
-- `config_report`, `check_config`, and `read_extension_bridge` now expose the raw secret because this repo is a local test harness, not a production-safe integration.
+- This is a local test harness, so raw secret values are shown for simplicity.
+- `sa-local-mcp` and `sa-extension` intentionally expose similar tool surfaces so their output can be compared side by side.
