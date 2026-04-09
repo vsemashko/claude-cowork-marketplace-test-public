@@ -32,61 +32,6 @@
       }
     },
     {
-      "name": "sa-cowork-persist-mcp",
-      "description": "Manifest-based control plugin for persistence and user_config propagation",
-      "version": "1.0.0",
-      "category": "core",
-      "source": "./plugins/sa-cowork-persist-mcp",
-      "author": {
-        "name": "StashAway Engineering",
-        "email": "vladimir.semashko@stashaway.com"
-      }
-    },
-    {
-      "name": "sa-cowork-config-mcp",
-      "description": "Manifest-based control plugin for config and secret env injection",
-      "version": "1.0.0",
-      "category": "core",
-      "source": "./plugins/sa-cowork-config-mcp",
-      "author": {
-        "name": "StashAway Engineering",
-        "email": "vladimir.semashko@stashaway.com"
-      }
-    },
-    {
-      "name": "sa-cowork-path-mcp",
-      "description": "Manifest plugin for the PATH-only CLI availability baseline",
-      "version": "1.0.0",
-      "category": "core",
-      "source": "./plugins/sa-cowork-path-mcp",
-      "author": {
-        "name": "StashAway Engineering",
-        "email": "vladimir.semashko@stashaway.com"
-      }
-    },
-    {
-      "name": "sa-cowork-bootstrap-mcp",
-      "description": "Manifest plugin that bootstraps a bundled probe into CLAUDE_PLUGIN_DATA",
-      "version": "1.0.0",
-      "category": "core",
-      "source": "./plugins/sa-cowork-bootstrap-mcp",
-      "author": {
-        "name": "StashAway Engineering",
-        "email": "vladimir.semashko@stashaway.com"
-      }
-    },
-    {
-      "name": "sa-cowork-download-mcp",
-      "description": "Manifest plugin that downloads and caches a generic probe on first use",
-      "version": "1.0.0",
-      "category": "core",
-      "source": "./plugins/sa-cowork-download-mcp",
-      "author": {
-        "name": "StashAway Engineering",
-        "email": "vladimir.semashko@stashaway.com"
-      }
-    },
-    {
       "name": "sa-cowork-bootstrap-probe",
       "description": "Claude-style mirror for the bootstrap strategy",
       "version": "1.0.0",

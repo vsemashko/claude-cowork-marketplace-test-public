@@ -7,6 +7,8 @@ This repo contains a small Cowork plugin matrix for testing two things side by s
 
 The repo keeps the older control plugins in place and adds a comparable set of generic probe plugins so we can test PATH-only, bootstrap, and download flows without tying the experiment to `glab`, Playwright, or `pup`.
 
+Today, the GitHub-backed Cowork marketplace path in Claude reliably loads the `.claude-plugin` entries in this repo. The `manifest.json` / MCPB-style plugins are kept in the repo as controls and reference implementations, but they are not currently advertised from the marketplace index because Cowork marketplace sync does not ingest them cleanly in this flow.
+
 ## Plugin Matrix
 
 | Plugin | Format | Strategy | Install timing | Requires network | Uses plugin data | Uses config | Expected success signal |
@@ -49,3 +51,4 @@ The two `.claude-plugin` mirrors use the same keys under top-level `userConfig`.
 - The shared generic probe executable lives at `plugins/_shared/cli-probe/cowork-probe-cli`.
 - The download plugins fetch that same script from the repo's raw GitHub URL by default.
 - For local testing before the branch is published, override `PROBE_DOWNLOAD_URL` with a `file://` URL that points at the checked-in shared probe script.
+- The marketplace index currently lists only the `.claude-plugin` entries. The `manifest.json` plugins remain in the repo for extension-format experiments outside the current Cowork marketplace sync path.
