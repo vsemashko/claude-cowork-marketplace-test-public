@@ -27,12 +27,12 @@ CLAUDE_PLUGIN_DATA="${CLAUDE_PLUGIN_DATA}" \
 
 ## MCPB Bridge Check
 
-This plugin can also inspect an explicit bridge file exported by `sa-cowork-persist-mcp`.
+This plugin can also inspect an explicit bridge file exported by `sa-cowork-persist-extension`.
 
 Run:
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/skills/sa-cowork-persist-probe/scripts/read-mcpb-bridge.sh"
+bash "${CLAUDE_PLUGIN_ROOT}/skills/sa-cowork-persist-probe/scripts/read-extension-bridge.sh"
 ```
 
 Expected file:

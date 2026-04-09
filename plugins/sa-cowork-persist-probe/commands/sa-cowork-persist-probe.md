@@ -16,7 +16,7 @@ Use the **sa-cowork-persist-probe** skill.
 - If the user wants to inspect MCPB-exported config, run the bridge helper:
 
 ```bash
-bash "${CLAUDE_PLUGIN_ROOT}/skills/sa-cowork-persist-probe/scripts/read-mcpb-bridge.sh"
+bash "${CLAUDE_PLUGIN_ROOT}/skills/sa-cowork-persist-probe/scripts/read-extension-bridge.sh"
 ```
 
 ## Run

@@ -4,7 +4,7 @@ set -eu
 bridge_file="${HOME}/.cowork-probe/persist-probe/config-bridge.json"
 
 if [ ! -f "${bridge_file}" ]; then
-  echo "No MCPB bridge file found at ${bridge_file}"
+  echo "No extension bridge file found at ${bridge_file}"
   exit 0
 fi
 

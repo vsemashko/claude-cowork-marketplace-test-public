@@ -10,8 +10,8 @@ const STORE_FILE = join(STORE_DIR, "persisted-value.txt");
 const BRIDGE_FILE = join(STORE_DIR, "config-bridge.json");
 
 const server = new McpServer({
-  name: "sa-cowork-persist-mcp",
-  version: "1.1.0",
+  name: "sa-cowork-persist-extension",
+  version: "1.2.0",
 });
 
 server.tool(
@@ -53,7 +53,7 @@ server.tool(
 
 server.tool(
   "bridge_report",
-  "Write the current MCPB config summary to a shared bridge file so Claude-style plugins can inspect it explicitly.",
+  "Write the current desktop extension config summary to a shared bridge file so Claude-style plugins can inspect it explicitly.",
   {},
   async () => {
     mkdirSync(STORE_DIR, { recursive: true });
@@ -61,7 +61,7 @@ server.tool(
     const label = process.env.PROBE_LABEL || "QWE";
     const secret = process.env.PROBE_SECRET || "";
     const bridge = {
-      source: "sa-cowork-persist-mcp",
+      source: "sa-cowork-persist-extension",
       probe_label: label,
       probe_secret_present: Boolean(secret),
       probe_secret_length: secret.length,
