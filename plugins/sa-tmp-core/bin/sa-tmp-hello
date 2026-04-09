@@ -1,0 +1,16 @@
+#!/bin/sh
+set -eu
+
+plugin_data_root="${CLAUDE_PLUGIN_DATA:-${HOME:-/tmp}/.tmp-core}"
+binary_path="$0"
+
+case "$plugin_data_root" in
+  */tmp-core) storage_dir="$plugin_data_root/hello-binary" ;;
+  *) storage_dir="$plugin_data_root/tmp-core/hello-binary" ;;
+esac
+
+mkdir -p "$storage_dir"
+
+echo "name=sa-tmp-hello"
+echo "binary_path=$binary_path"
+echo "storage_dir=$storage_dir"

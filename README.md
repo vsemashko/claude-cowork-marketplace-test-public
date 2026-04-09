@@ -9,7 +9,8 @@ This repo is now intentionally minimal:
 
 - a `SessionStart` hook that writes the plugin user settings into `${CLAUDE_PLUGIN_DATA}/tmp-core/session-start.json`
 - one local MCP server named `sa-local-mcp`
-- two skills/commands: `sa-tmp-list` and `sa-tmp-set`
+- one plugin binary: `sa-tmp-hello`
+- three skills/commands: `sa-tmp-list`, `sa-tmp-set`, and `sa-tmp-hello`
 
 `sa-extension` includes:
 
@@ -108,7 +109,24 @@ Expected behavior:
 4. Call `sa-extension` `get_value`
 5. Print the final extension value
 
+### `sa-tmp-hello`
+
+Use:
+
+```text
+/sa-tmp-hello
+```
+
+Expected behavior:
+
+1. Invoke `sa-tmp-hello` directly by name
+2. Print:
+   - `name=sa-tmp-hello`
+   - `binary_path=...`
+   - `storage_dir=...`
+
 ## Notes
 
 - This is a local test harness, so raw secret values are shown for simplicity.
 - `sa-local-mcp` and `sa-extension` intentionally expose similar tool surfaces so their output can be compared side by side.
+- The repo-root `bin/` folder has been removed. The temporary hello binary now lives in `plugins/sa-tmp-core/bin/`.
