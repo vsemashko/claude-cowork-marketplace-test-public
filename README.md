@@ -13,7 +13,7 @@ The first two are Claude-style plugins exposed through the repo marketplace. The
 | Artifact | Format | Purpose | Config path |
 | --- | --- | --- | --- |
 | `sa-cowork-bootstrap-probe` | `.claude-plugin` | Self-contained bootstrap probe that installs its own bundled CLI into `CLAUDE_PLUGIN_DATA` | `userConfig` |
-| `sa-cowork-persist-probe` | `.claude-plugin` | Persists a value inside `CLAUDE_PLUGIN_DATA` and can read an explicit bridge file exported by the desktop extension | `userConfig` |
+| `sa-cowork-persist-probe` | `.claude-plugin` | Persists a value inside `CLAUDE_PLUGIN_DATA`, reports its own config, and can read an explicit bridge file exported by the desktop extension | `userConfig` |
 | `sa-cowork-persist-extension` | `manifest.json` / desktop extension | Persist probe for extension-format experiments | `user_config` |
 
 The GitHub marketplace index only advertises the two `.claude-plugin` entries because that is the path Cowork currently ingests reliably from this repo.
@@ -57,13 +57,16 @@ The only reliable bridge is an explicit shared storage path or another deliberat
 
 ## Explicit Bridge Experiment
 
-`sa-cowork-persist-extension` exposes a `bridge_report` tool that writes a config summary to:
+`sa-cowork-persist-extension` exposes:
+
+- `config_report` to prove the extension received its configured values directly from `user_config`
+- `bridge_report` to write a config summary to:
 
 ```text
 ~/.cowork-probe/persist-probe/config-bridge.json
 ```
 
-`sa-cowork-persist-probe` includes a helper script that reads that file and reports what the extension exported.
+`sa-cowork-persist-probe` exposes `read_extension_bridge` to inspect that file from the plugin side. The shell script reader remains only as a debugging fallback.
 
 This demonstrates:
 
@@ -106,28 +109,35 @@ Expected result:
 
 - writing without arguments persists a generated value into `${CLAUDE_PLUGIN_DATA}/persist-probe/persisted-value.txt`
 - reading later returns the same value
-- the helper script can read the explicit bridge file if `bridge_report` has been run first
+- `check_config` reports the plugin MCP server's own configured values
+- `read_extension_bridge` reports the companion extension bridge status and tells the user to run `config_report` or `bridge_report` if the bridge is missing
 
 ### Desktop Extension Bridge
 
 After installing and configuring `sa-cowork-persist-extension`, call:
 
+- `config_report`
 - `persist_write`
 - `persist_read`
 - `bridge_report`
 
-Then, from `sa-cowork-persist-probe`, run:
+Then, from `sa-cowork-persist-probe`, call:
 
-```bash
-bash "${CLAUDE_PLUGIN_ROOT}/skills/sa-cowork-persist-probe/scripts/read-extension-bridge.sh"
-```
+- `read_extension_bridge`
 
-If the bridge worked, the script prints:
+If the bridge worked, the plugin MCP tool reports:
 
+- `bridge_found=true`
 - `source=sa-cowork-persist-extension`
 - `probe_label=<configured value>`
 - `probe_secret_present=true|false`
 - `probe_secret_length=<number>`
+
+If the bridge has not been written yet, `read_extension_bridge` returns:
+
+- `bridge_found=false`
+- the expected bridge path
+- a next step telling the user to run `config_report` or `bridge_report`
 
 ## Notes
 
@@ -135,3 +145,4 @@ If the bridge worked, the script prints:
 - The desktop extension stores data under `~/.cowork-probe/persist-probe/`.
 - The Claude-style persist probe stores its own data under `${CLAUDE_PLUGIN_DATA}/persist-probe/`.
 - Those two locations are intentionally different so the repo can show the difference between isolated plugin state and an explicit shared bridge.
+- The MCP-native inspection path is the preferred proof flow; the shell bridge-reader script is fallback-only.

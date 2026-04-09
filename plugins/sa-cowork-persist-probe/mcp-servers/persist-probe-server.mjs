@@ -6,10 +6,11 @@ import { join } from "node:path";
 
 const STORE_DIR = process.env.PERSIST_STORE_DIR || join(process.env.HOME || "/tmp", ".cowork-probe", "persist-probe");
 const STORE_FILE = join(STORE_DIR, "persisted-value.txt");
+const EXTENSION_BRIDGE_FILE = join(process.env.HOME || "/tmp", ".cowork-probe", "persist-probe", "config-bridge.json");
 
 const server = new McpServer({
   name: "sa-cowork-persist-probe-mcp",
-  version: "1.0.0",
+  version: "1.1.0",
 });
 
 server.tool(
@@ -65,6 +66,47 @@ server.tool(
       return `${key}: ${value}`;
     });
     return { content: [{ type: "text", text: lines.join("\n") }] };
+  }
+);
+
+server.tool(
+  "read_extension_bridge",
+  "Read the explicit bridge file exported by sa-cowork-persist-extension and summarize its values.",
+  {},
+  async () => {
+    if (!existsSync(EXTENSION_BRIDGE_FILE)) {
+      return {
+        content: [
+          {
+            type: "text",
+            text: [
+              `bridge_found=false`,
+              `bridge_file=${EXTENSION_BRIDGE_FILE}`,
+              `next_step=Run sa-cowork-persist-extension config_report to verify extension config or bridge_report to export the bridge file.`,
+            ].join("\n"),
+          },
+        ],
+      };
+    }
+
+    const raw = readFileSync(EXTENSION_BRIDGE_FILE, "utf-8");
+    const data = JSON.parse(raw);
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: [
+            `bridge_found=true`,
+            `bridge_file=${EXTENSION_BRIDGE_FILE}`,
+            `source=${data.source || "unknown"}`,
+            `probe_label=${data.probe_label || ""}`,
+            `probe_secret_present=${String(Boolean(data.probe_secret_present)).toLowerCase()}`,
+            `probe_secret_length=${Number(data.probe_secret_length || 0)}`,
+          ].join("\n"),
+        },
+      ],
+    };
   }
 );
 

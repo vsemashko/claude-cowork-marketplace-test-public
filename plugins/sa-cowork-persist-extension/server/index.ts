@@ -11,8 +11,19 @@ const BRIDGE_FILE = join(STORE_DIR, "config-bridge.json");
 
 const server = new McpServer({
   name: "sa-cowork-persist-extension",
-  version: "1.2.0",
+  version: "1.3.0",
 });
+
+function getConfigSummary() {
+  const label = process.env.PROBE_LABEL || "QWE";
+  const secret = process.env.PROBE_SECRET || "";
+
+  return {
+    probe_label: label,
+    probe_secret_present: Boolean(secret),
+    probe_secret_length: secret.length,
+  };
+}
 
 server.tool(
   "persist_write",
@@ -52,19 +63,36 @@ server.tool(
 );
 
 server.tool(
+  "config_report",
+  "Report the configured extension values available through mcp_config.env without revealing the raw secret.",
+  {},
+  async () => {
+    const summary = getConfigSummary();
+    return {
+      content: [
+        {
+          type: "text",
+          text: [
+            `probe_label=${summary.probe_label}`,
+            `probe_secret_present=${String(summary.probe_secret_present).toLowerCase()}`,
+            `probe_secret_length=${summary.probe_secret_length}`,
+          ].join("\n"),
+        },
+      ],
+    };
+  }
+);
+
+server.tool(
   "bridge_report",
   "Write the current desktop extension config summary to a shared bridge file so Claude-style plugins can inspect it explicitly.",
   {},
   async () => {
     mkdirSync(STORE_DIR, { recursive: true });
 
-    const label = process.env.PROBE_LABEL || "QWE";
-    const secret = process.env.PROBE_SECRET || "";
     const bridge = {
       source: "sa-cowork-persist-extension",
-      probe_label: label,
-      probe_secret_present: Boolean(secret),
-      probe_secret_length: secret.length,
+      ...getConfigSummary(),
       bridge_file: BRIDGE_FILE,
     };
 
