@@ -6,7 +6,7 @@
   },
   "metadata": {
     "description": "Cowork marketplace test: persistence, binaries, and MCPB extensions",
-    "version": "2.0.0"
+    "version": "2.1.0"
   },
   "plugins": [
     {
@@ -48,6 +48,17 @@
       "version": "1.0.0",
       "category": "core",
       "source": "./plugins/sa-cowork-download-probe",
+      "author": {
+        "name": "StashAway Engineering",
+        "email": "vladimir.semashko@stashaway.com"
+      }
+    },
+    {
+      "name": "sa-cowork-remote-config-probe",
+      "description": "Rootly-style hosted MCP probe for testing userConfig in remote connectors, hooks, and skills",
+      "version": "1.0.0",
+      "category": "core",
+      "source": "./plugins/sa-cowork-remote-config-probe",
       "author": {
         "name": "StashAway Engineering",
         "email": "vladimir.semashko@stashaway.com"

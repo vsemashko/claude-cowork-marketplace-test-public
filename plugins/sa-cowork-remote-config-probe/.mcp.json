@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "cowork-remote-config-probe": {
+      "type": "http",
+      "url": "${REMOTE_PROBE_ENDPOINT}",
+      "headers": {
+        "Authorization": "Bearer ${REMOTE_PROBE_TOKEN}",
+        "X-Remote-Probe-Label": "${REMOTE_PROBE_LABEL}"
+      }
+    }
+  }
+}
