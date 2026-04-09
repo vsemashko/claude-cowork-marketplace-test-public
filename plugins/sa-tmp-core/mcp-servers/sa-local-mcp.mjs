@@ -7,11 +7,11 @@ const storeDir = path.join(pluginData, "tmp-core", "local-mcp");
 const storeFile = path.join(storeDir, "stored-value.txt");
 
 function configuredPublicValue() {
-  return process.env.TMP_PUBLIC_VALUE || "plugin-public-default";
+  return process.env.SHARED_PUBLIC_VALUE || process.env.TMP_PUBLIC_VALUE || "plugin-public-default";
 }
 
 function configuredSecretValue() {
-  return process.env.TMP_SECRET_VALUE || "";
+  return process.env.SHARED_SECRET_VALUE || process.env.TMP_SECRET_VALUE || "";
 }
 
 async function ensureDir() {

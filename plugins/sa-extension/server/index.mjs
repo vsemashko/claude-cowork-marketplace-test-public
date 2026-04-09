@@ -7,11 +7,11 @@ const storeDir = path.join(homedir(), ".tmp-core", "sa-extension");
 const storeFile = path.join(storeDir, "stored-value.txt");
 
 function configuredPublicValue() {
-  return process.env.EXTENSION_PUBLIC_VALUE || "extension-public-default";
+  return process.env.SHARED_PUBLIC_VALUE || process.env.EXTENSION_PUBLIC_VALUE || "extension-public-default";
 }
 
 function configuredSecretValue() {
-  return process.env.EXTENSION_SECRET_VALUE || "";
+  return process.env.SHARED_SECRET_VALUE || process.env.EXTENSION_SECRET_VALUE || "";
 }
 
 async function ensureDir() {

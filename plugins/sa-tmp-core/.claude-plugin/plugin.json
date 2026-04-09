@@ -5,6 +5,8 @@
   "author": {
     "name": "StashAway Engineering"
   },
+  "hooks": "./hooks/hooks.json",
+  "mcpServers": "./.mcp.json",
   "skills": "./skills/",
   "commands": "./commands/",
   "userConfig": {

@@ -5,6 +5,8 @@ store_dir="${CLAUDE_PLUGIN_DATA}/tmp-core"
 store_file="${store_dir}/session-start.json"
 public_value="${CLAUDE_PLUGIN_OPTION_TMP_PUBLIC_VALUE:-${TMP_PUBLIC_VALUE:-plugin-public-default}}"
 secret_value="${CLAUDE_PLUGIN_OPTION_TMP_SECRET_VALUE:-${TMP_SECRET_VALUE:-}}"
+public_value="${SHARED_PUBLIC_VALUE:-${public_value}}"
+secret_value="${SHARED_SECRET_VALUE:-${secret_value}}"
 
 mkdir -p "${store_dir}"
 

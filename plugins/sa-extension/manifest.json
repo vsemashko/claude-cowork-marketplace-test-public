@@ -19,8 +19,8 @@
       "command": "node",
       "args": ["${__dirname}/server/index.mjs"],
       "env": {
-        "EXTENSION_PUBLIC_VALUE": "${user_config.extension_public_value}",
-        "EXTENSION_SECRET_VALUE": "${user_config.extension_secret_value}"
+        "SHARED_PUBLIC_VALUE": "${user_config.extension_public_value}",
+        "SHARED_SECRET_VALUE": "${user_config.extension_secret_value}"
       }
     }
   },
