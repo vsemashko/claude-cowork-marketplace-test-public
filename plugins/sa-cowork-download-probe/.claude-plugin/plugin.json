@@ -5,6 +5,8 @@
   "author": {
     "name": "StashAway Engineering"
   },
+  "skills": "./skills/",
+  "commands": "./commands/",
   "userConfig": {
     "probe_label": {
       "type": "string",

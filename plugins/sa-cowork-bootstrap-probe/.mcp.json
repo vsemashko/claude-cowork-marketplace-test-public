@@ -1,6 +1,7 @@
 {
   "mcpServers": {
     "cowork-bootstrap-probe": {
+      "type": "stdio",
       "command": "node",
       "args": ["${CLAUDE_PLUGIN_ROOT}/mcp-servers/bootstrap-probe-server.mjs"],
       "env": {

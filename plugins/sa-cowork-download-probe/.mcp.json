@@ -1,6 +1,7 @@
 {
   "mcpServers": {
     "cowork-download-probe": {
+      "type": "stdio",
       "command": "node",
       "args": ["${CLAUDE_PLUGIN_ROOT}/mcp-servers/download-probe-server.mjs"],
       "env": {

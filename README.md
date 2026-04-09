@@ -46,6 +46,41 @@ The two `.claude-plugin` mirrors use the same keys under top-level `userConfig`.
 - Download approximates "fetch the binary or runtime on demand and reuse the cached copy later"
 - The existing config controls approximate "pass tokens and endpoint-style values into the server or wrapper environment"
 
+## Testing In Cowork
+
+The `Connectors` view is mainly a raw MCP wiring preview. It is useful for confirming that Cowork discovered the server, but it is not the best place to exercise these plugins.
+
+Use the plugin skill or command instead:
+
+- `/sa-cowork-bootstrap-probe`
+- `/sa-cowork-download-probe`
+
+Or paste one of these prompts into a Cowork session:
+
+- `Use the cowork-bootstrap-probe connector and run report_env, report_cache, run_probe, then report_cache again.`
+- `Use the cowork-download-probe connector and run report_env, report_cache, run_probe twice, then report_cache again.`
+
+Expected outcomes:
+
+- `report_env` echoes non-sensitive config and redacts the token
+- bootstrap writes cache state into `${CLAUDE_PLUGIN_DATA}` during bootstrap/use
+- download fetches the probe on first run and reuses it on the second run
+
+## Public References
+
+Useful public plugin examples to compare against:
+
+- `trezero/telegram-per-project` shows `userConfig` plus inline `mcpServers` in `plugin.json`:
+  [plugin.json](https://github.com/trezero/telegram-per-project/blob/main/.claude-plugin/plugin.json)
+- `libraz/claude-coverwise` shows a `SessionStart` hook plus inline `mcpServers`:
+  [plugin.json](https://github.com/libraz/claude-coverwise/blob/main/.claude-plugin/plugin.json)
+- `imgompanda/fireauto` shows the external `.mcp.json` shape Cowork expects:
+  [.mcp.json](https://github.com/imgompanda/fireauto/blob/main/plugin/.mcp.json)
+- `attach-dev/attach-guard` shows a top-level `userConfig` token pattern without MCP:
+  [plugin.json](https://github.com/attach-dev/attach-guard/blob/main/plugin/.claude-plugin/plugin.json)
+- `Rootly-AI-Labs/rootly-claude-plugin` shows a hosted-plugin `userConfig` token pattern:
+  [plugin.json](https://github.com/Rootly-AI-Labs/rootly-claude-plugin/blob/main/.claude-plugin/plugin.json)
+
 ## Notes
 
 - The shared generic probe executable lives at `plugins/_shared/cli-probe/cowork-probe-cli`.
