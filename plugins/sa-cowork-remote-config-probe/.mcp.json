@@ -2,10 +2,10 @@
   "mcpServers": {
     "cowork-remote-config-probe": {
       "type": "http",
-      "url": "${REMOTE_PROBE_ENDPOINT}",
+      "url": "https://example.com/mcp",
       "headers": {
-        "Authorization": "Bearer ${REMOTE_PROBE_TOKEN}",
-        "X-Remote-Probe-Label": "${REMOTE_PROBE_LABEL}"
+        "Authorization": "Bearer ${user_config.REMOTE_PROBE_TOKEN}",
+        "X-Remote-Probe-Label": "${user_config.REMOTE_PROBE_LABEL}"
       }
     }
   }

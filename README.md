@@ -18,7 +18,7 @@ Today, the GitHub-backed Cowork marketplace path in Claude reliably loads the `.
 | `sa-cowork-download-mcp` | `manifest.json` | Download on first run | First `run_probe` | Yes | Yes | `user_config` | `run_probe` downloads the probe once, then reuses it from cache |
 | `sa-cowork-bootstrap-probe` | `.claude-plugin` | Bundled bootstrap mirror | `SessionStart` hook | No | Yes | `userConfig` | Session start writes the same bootstrap marker layout used by the manifest plugin |
 | `sa-cowork-download-probe` | `.claude-plugin` | Download mirror | First `run_probe` | Yes | Yes | `userConfig` | `run_probe` downloads once, then reports cache reuse on later runs |
-| `sa-cowork-remote-config-probe` | `.claude-plugin` | Hosted HTTP MCP + config report | `SessionStart` hook | No | Yes | `userConfig` | Hook writes a config report and the skill prints the configured endpoint, label, and token presence |
+| `sa-cowork-remote-config-probe` | `.claude-plugin` | Hosted HTTP MCP + config report | `SessionStart` hook | No | Yes | `userConfig` | Hook writes a config report and the skill prints the configured endpoint, label, and token presence while the remote connector keeps a static HTTPS URL |
 | `sa-cowork-persist-probe` | `.claude-plugin` | Existing control for plugin-data persistence | `SessionStart` hook | No | Yes | `userConfig` | Skill and MCP server can write and read the persisted value |
 | `sa-cowork-bin-probe` | `.claude-plugin` | Existing control for PATH and cross-plugin binaries | Never installs | No | No | None | Skill can find the probe binaries via bare command or relative fallback paths |
 | `sa-cowork-persist-mcp` | `manifest.json` | Existing control for manifest config + persistence | Runtime-specific | No | No plugin-data usage | `user_config` | MCP tools write and read a persisted value while surfacing manifest config |
@@ -75,7 +75,7 @@ Expected outcomes:
 Useful public plugin examples to compare against:
 
 - `Rootly-AI-Labs/rootly-claude-plugin` is the closest public example of the exact pattern this repo now tests:
-  top-level `userConfig`, a hosted HTTP MCP server in `.mcp.json`, and hook scripts that read the same token.
+  top-level `userConfig`, a hosted HTTP MCP server with a static URL in `.mcp.json`, and hook scripts that read the same token.
   [plugin.json](https://github.com/Rootly-AI-Labs/rootly-claude-plugin/blob/main/.claude-plugin/plugin.json)
   [.mcp.json](https://github.com/Rootly-AI-Labs/rootly-claude-plugin/blob/main/.mcp.json)
   [ARCHITECTURE.md](https://github.com/Rootly-AI-Labs/rootly-claude-plugin/blob/main/ARCHITECTURE.md)
@@ -94,4 +94,4 @@ Useful public plugin examples to compare against:
 - The download plugins fetch that same script from the repo's raw GitHub URL by default.
 - For local testing before the branch is published, override `PROBE_DOWNLOAD_URL` with a `file://` URL that points at the checked-in shared probe script.
 - The marketplace index currently lists only the `.claude-plugin` entries. The `manifest.json` plugins remain in the repo for extension-format experiments outside the current Cowork marketplace sync path.
-- The remote config probe intentionally focuses on config propagation. Its hosted MCP endpoint defaults to a harmless placeholder and the test signal comes from the hook report plus the skill output.
+- The remote config probe intentionally focuses on config propagation. Its hosted MCP endpoint now uses a static placeholder URL because Cowork validates the raw connector URL before plugin config substitution. The test signal comes from the hook report, the skill output, and header substitution rather than a dynamic URL field.
