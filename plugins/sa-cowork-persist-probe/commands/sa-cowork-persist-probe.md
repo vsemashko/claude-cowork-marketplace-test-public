@@ -13,6 +13,11 @@ Use the **sa-cowork-persist-probe** skill.
 - If the user provides a value, write it into the plugin data folder
 - If the user provides no value, read the existing file and return its contents
 - If no file exists yet, report that nothing has been persisted
+- If the user wants to inspect MCPB-exported config, run the bridge helper:
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/skills/sa-cowork-persist-probe/scripts/read-mcpb-bridge.sh"
+```
 
 ## Run
 

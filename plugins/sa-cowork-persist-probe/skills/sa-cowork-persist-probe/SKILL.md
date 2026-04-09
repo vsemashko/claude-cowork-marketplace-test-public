@@ -25,6 +25,26 @@ CLAUDE_PLUGIN_DATA="${CLAUDE_PLUGIN_DATA}" \
 
 `${CLAUDE_PLUGIN_DATA}/persist-probe/persisted-value.txt`
 
+## MCPB Bridge Check
+
+This plugin can also inspect an explicit bridge file exported by `sa-cowork-persist-mcp`.
+
+Run:
+
+```bash
+bash "${CLAUDE_PLUGIN_ROOT}/skills/sa-cowork-persist-probe/scripts/read-mcpb-bridge.sh"
+```
+
+Expected file:
+
+```text
+~/.cowork-probe/persist-probe/config-bridge.json
+```
+
+If the file exists, the script reports the exported `probe_label`, whether `probe_secret` was present, and the source path.
+
+This is an explicit shared-file bridge. It is **not** automatic plugin config sharing.
+
 ## Binaries
 
 This plugin ships an executable at `bin/hello-persist-probe`.

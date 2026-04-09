@@ -1,97 +1,99 @@
 # Cowork Marketplace Test
 
-This repo contains a small Cowork plugin matrix for testing two things side by side:
+This repo is intentionally small now. It keeps only the two Claude-style probes we still want to exercise in Cowork plus one MCPB persistence experiment:
 
-- CLI availability strategies in Cowork plugins
-- Config propagation for `user_config` and `userConfig`
+- `sa-cowork-bootstrap-probe`
+- `sa-cowork-persist-probe`
+- `sa-cowork-persist-mcp`
 
-The repo keeps the older control plugins in place and adds a comparable set of generic probe plugins so we can test PATH-only, bootstrap, and download flows without tying the experiment to `glab`, Playwright, or `pup`.
+## What Stays
 
-Today, the GitHub-backed Cowork marketplace path in Claude reliably loads the `.claude-plugin` entries in this repo. The `manifest.json` / MCPB-style plugins are kept in the repo as controls and reference implementations, but they are not currently advertised from the marketplace index because Cowork marketplace sync does not ingest them cleanly in this flow.
+| Artifact | Format | Purpose | Config path |
+| --- | --- | --- | --- |
+| `sa-cowork-bootstrap-probe` | `.claude-plugin` | Self-contained bootstrap probe that installs its own bundled CLI into `CLAUDE_PLUGIN_DATA` | `userConfig` |
+| `sa-cowork-persist-probe` | `.claude-plugin` | Persists a value inside `CLAUDE_PLUGIN_DATA` and can read an explicit bridge file exported by the MCPB probe | `userConfig` |
+| `sa-cowork-persist-mcp` | `manifest.json` / MCPB | Persist probe for Cowork extension-format experiments | `user_config` |
 
-## Plugin Matrix
+The GitHub marketplace index only advertises the two `.claude-plugin` entries because that is the path Cowork currently ingests reliably from this repo.
 
-| Plugin | Format | Strategy | Install timing | Requires network | Uses plugin data | Uses config | Expected success signal |
-| --- | --- | --- | --- | --- | --- | --- | --- |
-| `sa-cowork-path-mcp` | `manifest.json` | PATH-only baseline | Never installs | No | No reuse | `user_config` | `run_probe` succeeds only if `cowork-probe-cli` is already on `PATH` |
-| `sa-cowork-bootstrap-mcp` | `manifest.json` | Bundled bootstrap | Server startup | No | Yes | `user_config` | `report_cache` shows a bootstrap marker and `run_probe` reports `fresh_install` then `reused` |
-| `sa-cowork-download-mcp` | `manifest.json` | Download on first run | First `run_probe` | Yes | Yes | `user_config` | `run_probe` downloads the probe once, then reuses it from cache |
-| `sa-cowork-bootstrap-probe` | `.claude-plugin` | Bundled bootstrap mirror | `SessionStart` hook | No | Yes | `userConfig` | Session start writes the same bootstrap marker layout used by the manifest plugin |
-| `sa-cowork-download-probe` | `.claude-plugin` | Download mirror | First `run_probe` | Yes | Yes | `userConfig` | `run_probe` downloads once, then reports cache reuse on later runs |
-| `sa-cowork-remote-config-probe` | `.claude-plugin` | Hosted HTTP MCP + config report | `SessionStart` hook | No | Yes | `userConfig` | Hook writes a config report and the skill prints the configured endpoint, label, and token presence while the remote connector keeps a static HTTPS URL |
-| `sa-cowork-persist-probe` | `.claude-plugin` | Existing control for plugin-data persistence | `SessionStart` hook | No | Yes | `userConfig` | Skill and MCP server can write and read the persisted value |
-| `sa-cowork-bin-probe` | `.claude-plugin` | Existing control for PATH and cross-plugin binaries | Never installs | No | No | None | Skill can find the probe binaries via bare command or relative fallback paths |
-| `sa-cowork-persist-mcp` | `manifest.json` | Existing control for manifest config + persistence | Runtime-specific | No | No plugin-data usage | `user_config` | MCP tools write and read a persisted value while surfacing manifest config |
-| `sa-cowork-config-mcp` | `manifest.json` | Existing control for env injection | Never installs | No | No | `user_config` | `check_config` and `check_binaries` expose injected config without leaking secrets |
+## Config Isolation
 
-## Shared Probe Contract
+The main outcome from this repo is:
 
-The new experiment plugins all expose the same three tools:
+- `.claude-plugin` `userConfig` values are injected into that plugin's own hooks, skills, and subprocesses
+- MCPB `user_config` values are injected into that MCPB server's own `mcp_config.env`
+- there is no automatic cross-plugin or cross-format bridge between those two config systems
 
-- `report_env`
-- `run_probe`
-- `report_cache`
+So if you configure `probe_label` in `sa-cowork-persist-mcp`, the value does **not** magically appear in `sa-cowork-persist-probe` or `sa-cowork-bootstrap-probe`.
 
-The new manifest plugins use the same `user_config` keys:
+The only reliable bridge is an explicit shared storage path or another deliberate handoff.
 
-- `probe_label`
-- `probe_endpoint`
-- `probe_token` (sensitive)
+## Explicit Bridge Experiment
 
-The two `.claude-plugin` mirrors use the same keys under top-level `userConfig`.
+`sa-cowork-persist-mcp` exposes a `bridge_report` tool that writes a config summary to:
 
-## How To Read The Matrix
+```text
+~/.cowork-probe/persist-probe/config-bridge.json
+```
 
-- PATH-only baseline approximates "the CLI is already installed on the machine"
-- Bootstrap approximates "install the runtime into plugin data at session start or server startup"
-- Download approximates "fetch the binary or runtime on demand and reuse the cached copy later"
-- The existing config controls approximate "pass tokens and endpoint-style values into the server or wrapper environment"
+`sa-cowork-persist-probe` includes a helper script that reads that file and reports what the MCPB probe exported.
+
+This demonstrates:
+
+- automatic config sharing: **no**
+- explicit shared-file bridge: **yes**
 
 ## Testing In Cowork
 
-The `Connectors` view is mainly a raw MCP wiring preview. It is useful for confirming that Cowork discovered the server, but it is not the best place to exercise these plugins.
+Use the plugin skills or commands rather than the raw connector pane.
 
-Use the plugin skill or command instead:
+### Bootstrap Probe
 
-- `/sa-cowork-bootstrap-probe`
-- `/sa-cowork-download-probe`
-- `/sa-cowork-remote-config-probe`
+Run:
 
-Or paste one of these prompts into a Cowork session:
+```text
+/sa-cowork-bootstrap-probe
+```
 
-- `Use the cowork-bootstrap-probe connector and run report_env, report_cache, run_probe, then report_cache again.`
-- `Use the cowork-download-probe connector and run report_env, report_cache, run_probe twice, then report_cache again.`
-- `Run bash "${CLAUDE_PLUGIN_ROOT}/scripts/print-remote-config.sh" and summarize the resolved endpoint, label, token presence, and hook report path for the remote config probe.`
+Or prompt:
 
-Expected outcomes:
+```text
+Use the cowork-bootstrap-probe connector and run report_env, report_cache, run_probe, then report_cache again.
+```
 
-- `report_env` echoes non-sensitive config and redacts the token
-- bootstrap writes cache state into `${CLAUDE_PLUGIN_DATA}` during bootstrap/use
-- download fetches the probe on first run and reuses it on the second run
-- remote config writes a JSON report during `SessionStart` and the skill prints the same values from the hook/skill side
+Expected result:
 
-## Public References
+- the bundled CLI is copied into `${CLAUDE_PLUGIN_DATA}/bootstrap/bin`
+- `run_probe` executes the cached CLI
+- `report_cache` shows the install marker
 
-Useful public plugin examples to compare against:
+### Persist Probe
 
-- `Rootly-AI-Labs/rootly-claude-plugin` is the closest public example of the exact pattern this repo now tests:
-  top-level `userConfig`, a hosted HTTP MCP server with a static URL in `.mcp.json`, and hook scripts that read the same token.
-  [plugin.json](https://github.com/Rootly-AI-Labs/rootly-claude-plugin/blob/main/.claude-plugin/plugin.json)
-  [.mcp.json](https://github.com/Rootly-AI-Labs/rootly-claude-plugin/blob/main/.mcp.json)
-  [ARCHITECTURE.md](https://github.com/Rootly-AI-Labs/rootly-claude-plugin/blob/main/ARCHITECTURE.md)
-- `attach-dev/attach-guard` shows a top-level `userConfig` token consumed by hook scripts:
-  [plugin.json](https://github.com/attach-dev/attach-guard/blob/main/plugin/.claude-plugin/plugin.json)
-- `libraz/claude-coverwise` shows `SessionStart` hooks plus local `mcpServers`:
-  [plugin.json](https://github.com/libraz/claude-coverwise/blob/main/.claude-plugin/plugin.json)
-- `trezero/telegram-per-project` shows `userConfig` plus MCP wiring in a simpler local plugin:
-  [plugin.json](https://github.com/trezero/telegram-per-project/blob/main/.claude-plugin/plugin.json)
-- `imgompanda/fireauto` is still useful as a reference for the external `.mcp.json` file shape Cowork expects, but it is not a `userConfig` example:
-  [.mcp.json](https://github.com/imgompanda/fireauto/blob/main/plugin/.mcp.json)
+Run:
+
+```text
+/sa-cowork-persist-probe
+```
+
+Expected result:
+
+- writing without arguments persists a generated value into `${CLAUDE_PLUGIN_DATA}/persist-probe/persisted-value.txt`
+- reading later returns the same value
+- the helper script can read the explicit MCPB bridge file if `bridge_report` has been run first
+
+### MCPB Bridge
+
+After configuring and running `sa-cowork-persist-mcp`, call:
+
+- `persist_write`
+- `persist_read`
+- `bridge_report`
+
+Then, from `sa-cowork-persist-probe`, run the helper script described in the skill to confirm that the bridge file is visible.
 
 ## Notes
 
-- The shared generic probe executable lives at `plugins/_shared/cli-probe/cowork-probe-cli`.
-- The download plugins fetch that same script from the repo's raw GitHub URL by default.
-- For local testing before the branch is published, override `PROBE_DOWNLOAD_URL` with a `file://` URL that points at the checked-in shared probe script.
-- The marketplace index currently lists only the `.claude-plugin` entries. The `manifest.json` plugins remain in the repo for extension-format experiments outside the current Cowork marketplace sync path.
-- The remote config probe intentionally focuses on config propagation. Its hosted MCP endpoint now uses a static placeholder URL because Cowork validates the raw connector URL before plugin config substitution. The test signal comes from the hook report, the skill output, and header substitution rather than a dynamic URL field.
+- The bootstrap plugin is now fully self-contained; it no longer depends on `plugins/_shared/cli-probe`.
+- The persist MCPB stores data under `~/.cowork-probe/persist-probe/`.
+- The Claude-style persist probe stores its own data under `${CLAUDE_PLUGIN_DATA}/persist-probe/`.
+- Those two locations are intentionally different so the repo can show the difference between isolated plugin state and an explicit shared bridge.

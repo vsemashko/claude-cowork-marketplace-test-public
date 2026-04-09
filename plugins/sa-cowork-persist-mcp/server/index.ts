@@ -7,10 +7,11 @@ import { homedir } from "node:os";
 
 const STORE_DIR = join(homedir(), ".cowork-probe", "persist-probe");
 const STORE_FILE = join(STORE_DIR, "persisted-value.txt");
+const BRIDGE_FILE = join(STORE_DIR, "config-bridge.json");
 
 const server = new McpServer({
   name: "sa-cowork-persist-mcp",
-  version: "1.0.0",
+  version: "1.1.0",
 });
 
 server.tool(
@@ -47,6 +48,36 @@ server.tool(
       return { content: [{ type: "text", text: `File exists but is empty: ${STORE_FILE}` }] };
     }
     return { content: [{ type: "text", text: `Stored value: ${value}` }] };
+  }
+);
+
+server.tool(
+  "bridge_report",
+  "Write the current MCPB config summary to a shared bridge file so Claude-style plugins can inspect it explicitly.",
+  {},
+  async () => {
+    mkdirSync(STORE_DIR, { recursive: true });
+
+    const label = process.env.PROBE_LABEL || "QWE";
+    const secret = process.env.PROBE_SECRET || "";
+    const bridge = {
+      source: "sa-cowork-persist-mcp",
+      probe_label: label,
+      probe_secret_present: Boolean(secret),
+      probe_secret_length: secret.length,
+      bridge_file: BRIDGE_FILE,
+    };
+
+    writeFileSync(BRIDGE_FILE, `${JSON.stringify(bridge, null, 2)}\n`, "utf-8");
+
+    return {
+      content: [
+        {
+          type: "text",
+          text: `Wrote bridge report to ${BRIDGE_FILE}`,
+        },
+      ],
+    };
   }
 );
 

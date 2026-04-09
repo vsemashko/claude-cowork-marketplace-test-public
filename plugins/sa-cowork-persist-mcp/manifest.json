@@ -2,8 +2,8 @@
   "manifest_version": "0.3",
   "name": "sa-cowork-persist-mcp",
   "display_name": "Cowork Persist Probe",
-  "version": "1.0.0",
-  "description": "MCP server for testing Cowork persistence with user_config",
+  "version": "1.1.0",
+  "description": "MCP server for testing Cowork persistence with user_config and an explicit config bridge export",
   "author": {
     "name": "StashAway Engineering",
     "url": "https://github.com/vsemashko"
@@ -26,7 +26,8 @@
   },
   "tools": [
     { "name": "persist_write", "description": "Write a value to persistent storage" },
-    { "name": "persist_read", "description": "Read the persisted value" }
+    { "name": "persist_read", "description": "Read the persisted value" },
+    { "name": "bridge_report", "description": "Write a config summary to a shared bridge file for the Claude-style persist probe to read" }
   ],
   "user_config": {
     "probe_label": {

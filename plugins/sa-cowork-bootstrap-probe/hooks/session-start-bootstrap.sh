@@ -3,12 +3,12 @@ set -eu
 
 plugin_root="${CLAUDE_PLUGIN_ROOT:?CLAUDE_PLUGIN_ROOT is required}"
 plugin_data="${CLAUDE_PLUGIN_DATA:?CLAUDE_PLUGIN_DATA is required}"
-asset_path=$(cd "${plugin_root}/../_shared/cli-probe" && pwd)/cowork-probe-cli
+asset_path="${plugin_root}/bin/cowork-probe-cli"
 cache_dir="${plugin_data}/bootstrap"
 bin_dir="${cache_dir}/bin"
 executable_path="${bin_dir}/cowork-probe-cli"
 marker_path="${cache_dir}/install.json"
-plugin_version="${CLAUDE_PLUGIN_VERSION:-1.0.0}"
+plugin_version="${CLAUDE_PLUGIN_VERSION:-1.1.0}"
 plugin_name="sa-cowork-bootstrap-probe"
 
 mkdir -p "$bin_dir"

@@ -5,14 +5,14 @@
     "email": "vladimir.semashko@stashaway.com"
   },
   "metadata": {
-    "description": "Cowork marketplace test: persistence, binaries, and MCPB extensions",
-    "version": "2.1.0"
+    "description": "Cowork marketplace test: bootstrap and persistence probes plus one MCPB persistence experiment",
+    "version": "3.0.0"
   },
   "plugins": [
     {
       "name": "sa-cowork-persist-probe",
-      "description": "Minimal Cowork probe plugin that writes and reads a file from CLAUDE_PLUGIN_DATA",
-      "version": "2.80.6",
+      "description": "Minimal Cowork probe plugin that persists a value and can read an explicit bridge file exported by the MCPB persist probe",
+      "version": "2.81.0",
       "category": "core",
       "source": "./plugins/sa-cowork-persist-probe",
       "author": {
@@ -21,44 +21,11 @@
       }
     },
     {
-      "name": "sa-cowork-bin-probe",
-      "description": "Verifies plugin-root and marketplace-root binaries via cross-plugin paths",
-      "version": "1.0.3",
-      "category": "core",
-      "source": "./plugins/sa-cowork-bin-probe",
-      "author": {
-        "name": "StashAway Engineering",
-        "email": "vladimir.semashko@stashaway.com"
-      }
-    },
-    {
       "name": "sa-cowork-bootstrap-probe",
-      "description": "Claude-style mirror for the bootstrap strategy",
-      "version": "1.0.0",
+      "description": "Self-contained Cowork bootstrap probe that installs its own bundled CLI into CLAUDE_PLUGIN_DATA",
+      "version": "1.1.0",
       "category": "core",
       "source": "./plugins/sa-cowork-bootstrap-probe",
-      "author": {
-        "name": "StashAway Engineering",
-        "email": "vladimir.semashko@stashaway.com"
-      }
-    },
-    {
-      "name": "sa-cowork-download-probe",
-      "description": "Claude-style mirror for the download strategy",
-      "version": "1.0.0",
-      "category": "core",
-      "source": "./plugins/sa-cowork-download-probe",
-      "author": {
-        "name": "StashAway Engineering",
-        "email": "vladimir.semashko@stashaway.com"
-      }
-    },
-    {
-      "name": "sa-cowork-remote-config-probe",
-      "description": "Rootly-style hosted MCP probe for testing userConfig in remote connectors, hooks, and skills",
-      "version": "1.0.0",
-      "category": "core",
-      "source": "./plugins/sa-cowork-remote-config-probe",
       "author": {
         "name": "StashAway Engineering",
         "email": "vladimir.semashko@stashaway.com"
