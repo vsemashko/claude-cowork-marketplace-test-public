@@ -1,0 +1,28 @@
+{
+  "name": "sa-cowork-download-probe",
+  "version": "1.0.0",
+  "description": "Claude-style mirror plugin that downloads a probe into CLAUDE_PLUGIN_DATA on first run and reuses it later.",
+  "author": {
+    "name": "StashAway Engineering"
+  },
+  "userConfig": {
+    "probe_label": {
+      "type": "string",
+      "title": "Probe Label",
+      "description": "Human-readable label echoed by report_env and run_probe.",
+      "default": "Download Probe"
+    },
+    "probe_endpoint": {
+      "type": "string",
+      "title": "Probe Endpoint",
+      "description": "Endpoint value used to verify non-sensitive config propagation.",
+      "default": "https://example.invalid/download-probe"
+    },
+    "probe_token": {
+      "type": "string",
+      "title": "Probe Token",
+      "description": "Sensitive token used to verify redaction behavior.",
+      "sensitive": true
+    }
+  }
+}
