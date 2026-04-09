@@ -5,8 +5,8 @@
       "command": "node",
       "args": ["${CLAUDE_PLUGIN_ROOT}/mcp-servers/sa-local-mcp.mjs"],
       "env": {
-        "SHARED_PUBLIC_VALUE": "${user_config.tmp_public_value}",
-        "SHARED_SECRET_VALUE": "${user_config.tmp_secret_value}",
+        "SHARED_PUBLIC_VALUE": "local-mcp-public-fixed",
+        "SHARED_SECRET_VALUE": "local-mcp-secret-fixed",
         "TMP_PLUGIN_DATA": "${CLAUDE_PLUGIN_DATA}"
       },
       "_meta": {

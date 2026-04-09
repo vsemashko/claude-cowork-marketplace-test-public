@@ -30,7 +30,12 @@ The session-start hook writes both values into:
 ${CLAUDE_PLUGIN_DATA}/tmp-core/session-start.json
 ```
 
-The local MCP server `sa-local-mcp` also receives those same values through its env.
+The local MCP server `sa-local-mcp` is intentionally separate from plugin settings for this experiment. It receives fixed test env values from `.mcp.json`:
+
+- `SHARED_PUBLIC_VALUE=local-mcp-public-fixed`
+- `SHARED_SECRET_VALUE=local-mcp-secret-fixed`
+
+This lets you test whether local MCP registration works at all without depending on plugin `userConfig` wiring.
 
 ## Extension Config
 
@@ -80,6 +85,12 @@ Expected behavior:
 2. Call `sa-local-mcp` `get_all`
 3. Call `sa-extension` `get_all` if the extension is installed
 4. Print all three results
+
+Expected comparison:
+
+- session-start file shows plugin `userConfig`
+- local MCP shows the fixed local MCP values
+- extension shows extension `user_config` values
 
 ### `sa-tmp-set`
 
