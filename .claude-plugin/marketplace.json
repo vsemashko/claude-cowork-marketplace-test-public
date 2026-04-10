@@ -1,34 +1,23 @@
 {
-  "name": "stashaway-cowork-test",
+  "name": "cowork-runtime-test-marketplace",
   "owner": {
-    "name": "StashAway Engineering",
-    "email": "vladimir.semashko@stashaway.com"
+    "name": "Vladimir Semashko",
+    "email": "vsemashko@gmail.com"
   },
   "metadata": {
-    "description": "Cowork marketplace test: persistence, binaries, and MCPB extensions",
-    "version": "2.0.0"
+    "description": "Minimal Cowork marketplace for testing runtime bootstrap, hooks, and Deno execution",
+    "version": "1.0.0"
   },
   "plugins": [
     {
-      "name": "sa-cowork-persist-probe",
-      "description": "Minimal Cowork probe plugin that writes and reads a file from CLAUDE_PLUGIN_DATA",
-      "version": "2.80.6",
+      "name": "sa-cowork-runtime-test",
+      "description": "Bootstraps mise and deno in Cowork, verifies hook persistence, and runs a hello-world Deno script",
+      "version": "1.0.0",
       "category": "core",
-      "source": "./plugins/sa-cowork-persist-probe",
+      "source": "./plugins/sa-cowork-runtime-test",
       "author": {
-        "name": "StashAway Engineering",
-        "email": "vladimir.semashko@stashaway.com"
-      }
-    },
-    {
-      "name": "sa-cowork-bin-probe",
-      "description": "Verifies plugin-root and marketplace-root binaries via cross-plugin paths",
-      "version": "1.0.3",
-      "category": "core",
-      "source": "./plugins/sa-cowork-bin-probe",
-      "author": {
-        "name": "StashAway Engineering",
-        "email": "vladimir.semashko@stashaway.com"
+        "name": "Vladimir Semashko",
+        "email": "vsemashko@gmail.com"
       }
     }
   ]
