@@ -1,20 +1,20 @@
 {
-  "name": "cowork-runtime-test-marketplace",
+  "name": "sa-mise-marketplace",
   "owner": {
     "name": "Vladimir Semashko",
     "email": "vsemashko@gmail.com"
   },
   "metadata": {
-    "description": "Minimal Cowork marketplace for testing runtime bootstrap, hooks, and Deno execution",
+    "description": "Minimal Claude marketplace for exposing a transparent mise shim",
     "version": "1.0.0"
   },
   "plugins": [
     {
-      "name": "sa-cowork-runtime-test",
-      "description": "Bootstraps mise and deno in Cowork, verifies hook persistence, and runs a hello-world Deno script",
+      "name": "sa-mise",
+      "description": "Bootstraps the latest mise binary into Claude plugin data and exposes it via a transparent shim",
       "version": "1.0.0",
       "category": "core",
-      "source": "./plugins/sa-cowork-runtime-test",
+      "source": "./plugins/sa-mise",
       "author": {
         "name": "Vladimir Semashko",
         "email": "vsemashko@gmail.com"

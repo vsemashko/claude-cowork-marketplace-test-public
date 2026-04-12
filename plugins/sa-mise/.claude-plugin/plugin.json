@@ -1,0 +1,8 @@
+{
+  "name": "sa-mise",
+  "version": "1.0.0",
+  "description": "Minimal Claude plugin that bootstraps the latest mise binary into plugin data",
+  "author": {
+    "name": "Vladimir Semashko"
+  }
+}
