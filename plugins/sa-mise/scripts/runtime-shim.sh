@@ -2,6 +2,8 @@
 
 set -eu
 
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+PLUGIN_ROOT="$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)"
 TMP_DIR=''
 INSTALL_SCRIPT_URL="${SA_MISE_INSTALL_SCRIPT_URL:-https://mise.jdx.dev/install.sh}"
 
@@ -28,7 +30,7 @@ detect_platform() {
   arch="$(uname -m 2>/dev/null | tr '[:upper:]' '[:lower:]')"
 
   case "$os/$arch" in
-    linux/aarch64 | linux/arm64)
+    linux/aarch64|linux/arm64)
       printf 'linux-arm64\n'
       ;;
     *)
@@ -37,21 +39,70 @@ detect_platform() {
   esac
 }
 
-require_plugin_env() {
-  PLUGIN_ROOT="${CLAUDE_PLUGIN_ROOT:-}"
-  PLUGIN_DATA_DIR="${CLAUDE_PLUGIN_DATA:-}"
+snapshot_key() {
+  set -- $(printf '%s' "$PLUGIN_ROOT" | cksum)
+  printf '%s\n' "$1"
+}
 
-  [ -n "$PLUGIN_ROOT" ] || fail 'CLAUDE_PLUGIN_ROOT is required for sa-mise.'
-  [ -n "$PLUGIN_DATA_DIR" ] || fail 'CLAUDE_PLUGIN_DATA is required for sa-mise.'
+snapshot_dir() {
+  printf '%s\n' "${TMPDIR:-/tmp}/sa-mise"
+}
+
+snapshot_path() {
+  printf '%s/%s.env\n' "$(snapshot_dir)" "$(snapshot_key)"
+}
+
+load_snapshot_plugin_data() {
+  snapshot_file="$(snapshot_path)"
+  [ -f "$snapshot_file" ] || return 1
+
+  snapshot_root=''
+  snapshot_data=''
+
+  while IFS='=' read -r key value; do
+    case "$key" in
+      CLAUDE_PLUGIN_ROOT)
+        snapshot_root="$value"
+        ;;
+      CLAUDE_PLUGIN_DATA)
+        snapshot_data="$value"
+        ;;
+    esac
+  done < "$snapshot_file"
+
+  [ -n "$snapshot_root" ] || return 1
+  [ -n "$snapshot_data" ] || return 1
+  [ "$snapshot_root" = "$PLUGIN_ROOT" ] || return 1
+
+  PLUGIN_DATA_DIR="$snapshot_data"
+  return 0
+}
+
+resolve_plugin_context() {
+  if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ "$CLAUDE_PLUGIN_ROOT" != "$PLUGIN_ROOT" ]; then
+    :
+  fi
+
+  if [ -n "${CLAUDE_PLUGIN_DATA:-}" ]; then
+    PLUGIN_DATA_DIR="$CLAUDE_PLUGIN_DATA"
+  elif ! load_snapshot_plugin_data; then
+    fail 'CLAUDE_PLUGIN_DATA is unavailable for sa-mise. Start a fresh Claude session first so the hook can snapshot plugin env.'
+  fi
 
   CACHE_ROOT="${PLUGIN_DATA_DIR}/sa-mise/linux-arm64"
   CACHE_BIN_PATH="${CACHE_ROOT}/bin/mise"
   INSTALL_MARKER="${CACHE_ROOT}/install-status.txt"
+  MISE_HOME_DIR="${CACHE_ROOT}/home"
+  MISE_DATA_DIR_PATH="${CACHE_ROOT}/mise-data"
+  MISE_CACHE_DIR_PATH="${CACHE_ROOT}/mise-cache"
+  MISE_CONFIG_DIR_PATH="${CACHE_ROOT}/mise-config"
+  MISE_STATE_DIR_PATH="${CACHE_ROOT}/mise-state"
 }
 
 ensure_cache_root() {
   mkdir -p "$PLUGIN_DATA_DIR"
   mkdir -p "$(dirname "$CACHE_BIN_PATH")"
+  mkdir -p "$MISE_HOME_DIR" "$MISE_DATA_DIR_PATH" "$MISE_CACHE_DIR_PATH" "$MISE_CONFIG_DIR_PATH" "$MISE_STATE_DIR_PATH"
 }
 
 cache_ready() {
@@ -59,7 +110,7 @@ cache_ready() {
 }
 
 require_commands() {
-  for required_command in curl sh uname date rm mkdir cat mv chmod mktemp dirname; do
+  for required_command in curl sh uname date rm mkdir cat mv chmod mktemp dirname cksum; do
     command -v "$required_command" >/dev/null 2>&1 || fail "$required_command is required for sa-mise bootstrap."
   done
 }
@@ -102,17 +153,17 @@ install_latest_mise() {
   mv "$staged_bin_path" "$CACHE_BIN_PATH"
   TMP_DIR=''
 
+  ensure_cache_root
   write_install_marker
 }
 
 ensure_mise_cache() {
-  require_plugin_env
-
   platform="$(detect_platform)"
   if [ "$platform" != "linux-arm64" ]; then
     fail "Unsupported sa-mise platform: $platform (expected linux-arm64)"
   fi
 
+  resolve_plugin_context
   ensure_cache_root
   require_commands
 
@@ -124,4 +175,10 @@ ensure_mise_cache() {
 }
 
 ensure_mise_cache
-exec "$CACHE_BIN_PATH" "$@"
+exec env \
+  HOME="$MISE_HOME_DIR" \
+  MISE_DATA_DIR="$MISE_DATA_DIR_PATH" \
+  MISE_CACHE_DIR="$MISE_CACHE_DIR_PATH" \
+  MISE_CONFIG_DIR="$MISE_CONFIG_DIR_PATH" \
+  MISE_STATE_DIR="$MISE_STATE_DIR_PATH" \
+  "$CACHE_BIN_PATH" "$@"

@@ -2,6 +2,7 @@
 
 set -eu
 
-: "${CLAUDE_PLUGIN_ROOT:?CLAUDE_PLUGIN_ROOT is required for sa-mise}"
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+PLUGIN_ROOT="$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)"
 
-exec "${CLAUDE_PLUGIN_ROOT}/scripts/runtime-shim.sh" "$@"
+exec "${PLUGIN_ROOT}/scripts/runtime-shim.sh" "$@"
