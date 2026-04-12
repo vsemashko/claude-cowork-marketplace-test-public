@@ -1,0 +1,7 @@
+#!/bin/sh
+
+set -eu
+
+: "${CLAUDE_PLUGIN_ROOT:?CLAUDE_PLUGIN_ROOT is required for sa-mise}"
+
+exec "${CLAUDE_PLUGIN_ROOT}/scripts/runtime-shim.sh" "$@"

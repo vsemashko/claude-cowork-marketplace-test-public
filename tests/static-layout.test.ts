@@ -2,7 +2,7 @@ import { assertEquals } from '@std/assert'
 import { exists } from '@std/fs'
 import { join } from '@std/path'
 
-Deno.test('marketplace manifest advertises only the runtime test plugin', async () => {
+Deno.test('marketplace manifest advertises only the sa-mise plugin', async () => {
   const manifest = JSON.parse(
     await Deno.readTextFile(
       join(Deno.cwd(), '.claude-plugin', 'marketplace.json'),
@@ -10,79 +10,27 @@ Deno.test('marketplace manifest advertises only the runtime test plugin', async 
   ) as { plugins: Array<{ name: string; source: string }> }
 
   assertEquals(manifest.plugins.length, 1)
-  assertEquals(manifest.plugins[0]?.name, 'sa-cowork-runtime-test')
-  assertEquals(manifest.plugins[0]?.source, './plugins/sa-cowork-runtime-test')
+  assertEquals(manifest.plugins[0]?.name, 'sa-mise')
+  assertEquals(manifest.plugins[0]?.source, './plugins/sa-mise')
 })
 
-Deno.test('runtime test plugin ships the expected static assets', async () => {
-  const pluginRoot = join(Deno.cwd(), 'plugins', 'sa-cowork-runtime-test')
+Deno.test('sa-mise plugin ships the expected minimal assets', async () => {
+  const pluginRoot = join(Deno.cwd(), 'plugins', 'sa-mise')
 
   assertEquals(
     await exists(join(pluginRoot, '.claude-plugin', 'plugin.json')),
     true,
   )
-  assertEquals(await exists(join(pluginRoot, '.tool-versions')), true)
   assertEquals(await exists(join(pluginRoot, 'bin', 'mise')), true)
-  assertEquals(await exists(join(pluginRoot, 'bin', 'deno')), true)
   assertEquals(
-    await exists(join(pluginRoot, 'deps', 'linux-arm64', 'runtime.env')),
-    true,
-  )
-  assertEquals(await exists(join(pluginRoot, 'hooks', 'hooks.json')), true)
-  assertEquals(
-    await exists(join(pluginRoot, 'hooks', 'session-start-marker.sh')),
+    await exists(join(pluginRoot, 'scripts', 'runtime-shim.sh')),
     true,
   )
   assertEquals(
-    await exists(
-      join(pluginRoot, 'skills', 'sa-cowork-runtime-test-install', 'SKILL.md'),
-    ),
+    await exists(join(pluginRoot, 'skills', 'sa-mise', 'SKILL.md')),
     true,
   )
-  assertEquals(
-    await exists(
-      join(
-        pluginRoot,
-        'scripts',
-        'runtime-shim.sh',
-      ),
-    ),
-    true,
-  )
-  assertEquals(
-    await exists(
-      join(
-        pluginRoot,
-        'skills',
-        'sa-cowork-runtime-test-install',
-        'scripts',
-        'bootstrap-cowork-runtime.sh',
-      ),
-    ),
-    true,
-  )
-  assertEquals(
-    await exists(
-      join(
-        pluginRoot,
-        'skills',
-        'sa-cowork-runtime-test-install',
-        'scripts',
-        'verify-cowork-runtime.sh',
-      ),
-    ),
-    true,
-  )
-  assertEquals(
-    await exists(
-      join(
-        pluginRoot,
-        'skills',
-        'sa-cowork-runtime-test-install',
-        'scripts',
-        'hello-runtime.ts',
-      ),
-    ),
-    true,
-  )
+  assertEquals(await exists(join(pluginRoot, 'bin', 'deno')), false)
+  assertEquals(await exists(join(pluginRoot, 'hooks')), false)
+  assertEquals(await exists(join(pluginRoot, 'deps')), false)
 })
