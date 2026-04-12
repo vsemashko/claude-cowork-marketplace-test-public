@@ -1,4 +1,0 @@
-#!/bin/sh
-echo "hello from sa-cowork-persist-probe plugin bin"
-echo "  path : $0"
-echo "  name : ${1:-<none>}"

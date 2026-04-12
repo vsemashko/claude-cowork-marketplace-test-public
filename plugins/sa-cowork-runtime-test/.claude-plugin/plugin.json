@@ -1,0 +1,9 @@
+{
+  "name": "sa-cowork-runtime-test",
+  "version": "1.0.0",
+  "description": "Minimal Cowork runtime bootstrap test plugin for mise, deno, hooks, and hello-world execution",
+  "author": {
+    "name": "Vladimir Semashko"
+  },
+  "hooks": "./hooks/hooks.json"
+}
