@@ -22,6 +22,8 @@ Deno.test('runtime test plugin ships the expected static assets', async () => {
     true,
   )
   assertEquals(await exists(join(pluginRoot, '.tool-versions')), true)
+  assertEquals(await exists(join(pluginRoot, 'bin', 'mise')), true)
+  assertEquals(await exists(join(pluginRoot, 'bin', 'deno')), true)
   assertEquals(
     await exists(join(pluginRoot, 'deps', 'linux-arm64', 'runtime.env')),
     true,
@@ -34,6 +36,16 @@ Deno.test('runtime test plugin ships the expected static assets', async () => {
   assertEquals(
     await exists(
       join(pluginRoot, 'skills', 'sa-cowork-runtime-test-install', 'SKILL.md'),
+    ),
+    true,
+  )
+  assertEquals(
+    await exists(
+      join(
+        pluginRoot,
+        'scripts',
+        'runtime-shim.sh',
+      ),
     ),
     true,
   )

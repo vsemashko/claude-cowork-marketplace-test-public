@@ -4,10 +4,12 @@ This repository is a minimal, static Claude Cowork marketplace bundle for
 testing one specific flow:
 
 1. Cowork installs a marketplace plugin.
-2. The plugin bootstraps `mise` and `deno` into `CLAUDE_PLUGIN_DATA`.
-3. The plugin exposes a skill that verifies the runtime by running a tiny Deno
-   script.
-4. A lightweight `SessionStart` hook leaves a durable marker in plugin data so
+2. The plugin ships transparent `bin/mise` and `bin/deno` shims.
+3. Those shims bootstrap the real `mise` and `deno` binaries into
+   `CLAUDE_PLUGIN_DATA`.
+4. The plugin exposes a skill that verifies the runtime by running a tiny Deno
+   script through the plugin-local shims.
+5. A lightweight `SessionStart` hook leaves a durable marker in plugin data so
    hook execution is easy to confirm.
 
 This repo intentionally does not package `stash`, `stashaway-agents`, provider
@@ -26,17 +28,21 @@ Add this repo as a marketplace source in Claude/Cowork:
 
 ## What The Plugin Does
 
-- Caches `mise` and `deno` under
-  `${CLAUDE_PLUGIN_DATA}/cowork-runtime-test/linux-arm64`
+- Ships committed plugin-local shims at:
+  - `${CLAUDE_PLUGIN_ROOT}/bin/mise`
+  - `${CLAUDE_PLUGIN_ROOT}/bin/deno`
+- Caches the real `mise` and `deno` binaries under
+  `${CLAUDE_PLUGIN_DATA}/cowork-runtime-test/linux-arm64/bin`
 - Reuses the cache when `deps/linux-arm64/runtime.env` has not changed
-- Links the cached binaries into `${HOME}/.local/bin` by default
 - Exposes the `sa-cowork-runtime-test-install` skill, which:
-  - bootstraps the runtime if needed
-  - prints `mise` and `deno` versions and resolved paths
-  - runs a hello-world Deno script
+  - verifies the hook marker
+  - prints shim paths and cached runtime paths
+  - runs `mise` and `deno` through the plugin-local shims
+  - runs a hello-world Deno script through the shimmed `deno`
 - Appends a marker to
   `${CLAUDE_PLUGIN_DATA}/cowork-runtime-test/session-start.log` on every session
   start
+- Never writes runtime files into `${HOME}/.local/bin`
 
 ## Manual Acceptance
 
@@ -45,8 +51,9 @@ Add this repo as a marketplace source in Claude/Cowork:
 3. Confirm `${CLAUDE_PLUGIN_DATA}/cowork-runtime-test/session-start.log` exists.
 4. Invoke the `sa-cowork-runtime-test-install` skill.
 5. Verify the output shows:
-   - the resolved `mise` path and version
-   - the resolved `deno` path and version
+   - the plugin-local `mise` and `deno` shim paths
+   - the cached `mise` and `deno` binary paths under `CLAUDE_PLUGIN_DATA`
+   - the resolved `mise` and `deno` versions
    - `Hello from Cowork runtime test`
 
 ## Local Validation
