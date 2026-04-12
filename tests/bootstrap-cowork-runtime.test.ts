@@ -1,15 +1,9 @@
-import { assert, assertEquals, assertStringIncludes } from '@std/assert'
+import { assertEquals, assertStringIncludes } from '@std/assert'
 import { exists } from '@std/fs'
 import { dirname, join } from '@std/path'
 
 const REPO_ROOT = Deno.cwd()
 const SOURCE_PLUGIN_ROOT = join(REPO_ROOT, 'plugins', 'sa-cowork-runtime-test')
-const SKILL_DIR = join(
-  SOURCE_PLUGIN_ROOT,
-  'skills',
-  'sa-cowork-runtime-test-install',
-  'scripts',
-)
 
 async function copyFileWithMode(src: string, dest: string): Promise<void> {
   await Deno.mkdir(dirname(dest), { recursive: true })
@@ -31,48 +25,26 @@ async function createPluginFixture(
     '1.0.0',
   )
 
-  await copyFileWithMode(
-    join(SOURCE_PLUGIN_ROOT, '.tool-versions'),
-    join(pluginRoot, '.tool-versions'),
-  )
-  await copyFileWithMode(
-    join(SOURCE_PLUGIN_ROOT, 'deps', 'linux-arm64', 'runtime.env'),
-    join(pluginRoot, 'deps', 'linux-arm64', 'runtime.env'),
-  )
-  await copyFileWithMode(
-    join(SOURCE_PLUGIN_ROOT, 'hooks', 'session-start-marker.sh'),
-    join(pluginRoot, 'hooks', 'session-start-marker.sh'),
-  )
-  await copyFileWithMode(
-    join(SKILL_DIR, 'bootstrap-cowork-runtime.sh'),
-    join(
-      pluginRoot,
-      'skills',
-      'sa-cowork-runtime-test-install',
-      'scripts',
-      'bootstrap-cowork-runtime.sh',
-    ),
-  )
-  await copyFileWithMode(
-    join(SKILL_DIR, 'verify-cowork-runtime.sh'),
-    join(
-      pluginRoot,
-      'skills',
-      'sa-cowork-runtime-test-install',
-      'scripts',
-      'verify-cowork-runtime.sh',
-    ),
-  )
-  await copyFileWithMode(
-    join(SKILL_DIR, 'hello-runtime.ts'),
-    join(
-      pluginRoot,
-      'skills',
-      'sa-cowork-runtime-test-install',
-      'scripts',
-      'hello-runtime.ts',
-    ),
-  )
+  const filesToCopy = [
+    '.tool-versions',
+    'deps/linux-arm64/runtime.env',
+    'hooks/session-start-marker.sh',
+    'hooks/hooks.json',
+    'bin/mise',
+    'bin/deno',
+    'scripts/runtime-shim.sh',
+    'skills/sa-cowork-runtime-test-install/SKILL.md',
+    'skills/sa-cowork-runtime-test-install/scripts/bootstrap-cowork-runtime.sh',
+    'skills/sa-cowork-runtime-test-install/scripts/verify-cowork-runtime.sh',
+    'skills/sa-cowork-runtime-test-install/scripts/hello-runtime.ts',
+  ]
+
+  for (const relativePath of filesToCopy) {
+    await copyFileWithMode(
+      join(SOURCE_PLUGIN_ROOT, relativePath),
+      join(pluginRoot, relativePath),
+    )
+  }
 
   if (runtimeEnv) {
     await Deno.writeTextFile(
@@ -205,53 +177,46 @@ function createEnv(
   pluginRoot: string,
   downloadLogPath: string,
   mockBinDir: string,
-): Record<string, string> {
-  const homeDir = join(baseDir, 'home')
-  const pluginDataDir = join(baseDir, 'plugin-data')
-  const binDir = join(homeDir, '.local', 'bin')
-
+) {
   return {
-    HOME: homeDir,
-    CLAUDE_PLUGIN_DATA: pluginDataDir,
+    HOME: join(baseDir, 'home'),
+    CLAUDE_PLUGIN_DATA: join(baseDir, 'plugin-data'),
     SA_COWORK_PLUGIN_ROOT: pluginRoot,
     SA_COWORK_FORCE_COWORK: '1',
     SA_COWORK_FORCE_PLATFORM: 'linux-arm64',
     SA_TEST_DOWNLOAD_LOG: downloadLogPath,
-    SA_COWORK_INSTALL_BIN_DIR: binDir,
     DENO_REAL_BIN: Deno.execPath(),
     PATH: `${mockBinDir}:${Deno.env.get('PATH') ?? ''}`,
   }
 }
 
-async function runScript(scriptPath: string, env: Record<string, string>) {
-  return await new Deno.Command(scriptPath, {
+async function runCommand(
+  command: string,
+  args: string[],
+  env: Record<string, string>,
+) {
+  return await new Deno.Command(command, {
+    args,
     env,
     stdout: 'piped',
     stderr: 'piped',
   }).output()
 }
 
-Deno.test('bootstrap-cowork-runtime downloads mise and deno on cold start', async () => {
+Deno.test('plugin-local mise shim downloads runtime on cold start', async () => {
   const baseDir = await Deno.makeTempDir()
   try {
     const { pluginRoot } = await createPluginFixture(baseDir)
     const { mockBinDir, downloadLogPath } = await createMockTooling(baseDir)
-    const bootstrapPath = join(
-      pluginRoot,
-      'skills',
-      'sa-cowork-runtime-test-install',
-      'scripts',
-      'bootstrap-cowork-runtime.sh',
-    )
     const env = createEnv(baseDir, pluginRoot, downloadLogPath, mockBinDir)
 
-    const result = await runScript(bootstrapPath, env)
+    const result = await runCommand(join(pluginRoot, 'bin', 'mise'), [
+      '--version',
+    ], env)
     const stdout = new TextDecoder().decode(result.stdout)
 
     assertEquals(result.success, true)
-    assertStringIncludes(stdout, 'Cowork runtime is ready.')
-    assertStringIncludes(stdout, 'mise version: mise test 2026.3.9')
-    assertStringIncludes(stdout, 'deno version: deno 2.6.8')
+    assertStringIncludes(stdout, 'mise test 2026.3.9')
     assertEquals(
       await exists(
         join(
@@ -276,6 +241,8 @@ Deno.test('bootstrap-cowork-runtime downloads mise and deno on cold start', asyn
       ),
       true,
     )
+    assertEquals(await exists(join(env.HOME, '.local', 'bin', 'mise')), false)
+    assertEquals(await exists(join(env.HOME, '.local', 'bin', 'deno')), false)
 
     const downloadLog = await Deno.readTextFile(downloadLogPath)
     assertEquals(downloadLog.trim().split('\n').length, 2)
@@ -284,27 +251,20 @@ Deno.test('bootstrap-cowork-runtime downloads mise and deno on cold start', asyn
   }
 })
 
-Deno.test('bootstrap-cowork-runtime reuses cache when runtime metadata is unchanged', async () => {
+Deno.test('plugin-local deno shim downloads runtime on cold start', async () => {
   const baseDir = await Deno.makeTempDir()
   try {
     const { pluginRoot } = await createPluginFixture(baseDir)
     const { mockBinDir, downloadLogPath } = await createMockTooling(baseDir)
-    const bootstrapPath = join(
-      pluginRoot,
-      'skills',
-      'sa-cowork-runtime-test-install',
-      'scripts',
-      'bootstrap-cowork-runtime.sh',
-    )
     const env = createEnv(baseDir, pluginRoot, downloadLogPath, mockBinDir)
 
-    const first = await runScript(bootstrapPath, env)
-    const second = await runScript(bootstrapPath, env)
-    const stdout = new TextDecoder().decode(second.stdout)
+    const result = await runCommand(join(pluginRoot, 'bin', 'deno'), [
+      '--version',
+    ], env)
+    const stdout = new TextDecoder().decode(result.stdout)
 
-    assertEquals(first.success, true)
-    assertEquals(second.success, true)
-    assertStringIncludes(stdout, 'Reusing cached Cowork runtime')
+    assertEquals(result.success, true)
+    assertStringIncludes(stdout, 'deno 2.6.8')
 
     const downloadLog = await Deno.readTextFile(downloadLogPath)
     assertEquals(downloadLog.trim().split('\n').length, 2)
@@ -313,7 +273,31 @@ Deno.test('bootstrap-cowork-runtime reuses cache when runtime metadata is unchan
   }
 })
 
-Deno.test('bootstrap-cowork-runtime refreshes cache when runtime metadata changes', async () => {
+Deno.test('plugin-local shims reuse cache when runtime metadata is unchanged', async () => {
+  const baseDir = await Deno.makeTempDir()
+  try {
+    const { pluginRoot } = await createPluginFixture(baseDir)
+    const { mockBinDir, downloadLogPath } = await createMockTooling(baseDir)
+    const env = createEnv(baseDir, pluginRoot, downloadLogPath, mockBinDir)
+
+    const first = await runCommand(join(pluginRoot, 'bin', 'mise'), [
+      '--version',
+    ], env)
+    const second = await runCommand(join(pluginRoot, 'bin', 'deno'), [
+      '--version',
+    ], env)
+
+    assertEquals(first.success, true)
+    assertEquals(second.success, true)
+
+    const downloadLog = await Deno.readTextFile(downloadLogPath)
+    assertEquals(downloadLog.trim().split('\n').length, 2)
+  } finally {
+    await Deno.remove(baseDir, { recursive: true })
+  }
+})
+
+Deno.test('plugin-local shims refresh cache when runtime metadata changes', async () => {
   const baseDir = await Deno.makeTempDir()
   try {
     const { pluginRoot } = await createPluginFixture(
@@ -321,16 +305,11 @@ Deno.test('bootstrap-cowork-runtime refreshes cache when runtime metadata change
       createRuntimeEnv('2.6.8'),
     )
     const { mockBinDir, downloadLogPath } = await createMockTooling(baseDir)
-    const bootstrapPath = join(
-      pluginRoot,
-      'skills',
-      'sa-cowork-runtime-test-install',
-      'scripts',
-      'bootstrap-cowork-runtime.sh',
-    )
     const env = createEnv(baseDir, pluginRoot, downloadLogPath, mockBinDir)
 
-    const first = await runScript(bootstrapPath, env)
+    const first = await runCommand(join(pluginRoot, 'bin', 'mise'), [
+      '--version',
+    ], env)
     assertEquals(first.success, true)
 
     await Deno.writeTextFile(
@@ -338,7 +317,9 @@ Deno.test('bootstrap-cowork-runtime refreshes cache when runtime metadata change
       createRuntimeEnv('2.6.9'),
     )
 
-    const second = await runScript(bootstrapPath, env)
+    const second = await runCommand(join(pluginRoot, 'bin', 'deno'), [
+      '--version',
+    ], env)
     assertEquals(second.success, true)
 
     const cachedRuntimeEnv = await Deno.readTextFile(
@@ -358,34 +339,25 @@ Deno.test('bootstrap-cowork-runtime refreshes cache when runtime metadata change
   }
 })
 
-Deno.test('bootstrap-cowork-runtime fails when plugin data is missing', async () => {
+Deno.test('plugin-local shims fail when plugin data is missing', async () => {
   const baseDir = await Deno.makeTempDir()
   try {
     const { pluginRoot } = await createPluginFixture(baseDir)
     const { mockBinDir, downloadLogPath } = await createMockTooling(baseDir)
-    const bootstrapPath = join(
-      pluginRoot,
-      'skills',
-      'sa-cowork-runtime-test-install',
-      'scripts',
-      'bootstrap-cowork-runtime.sh',
-    )
 
-    const result = await new Deno.Command(bootstrapPath, {
-      env: {
-        HOME: join(baseDir, 'home'),
-        SA_COWORK_PLUGIN_ROOT: pluginRoot,
-        SA_COWORK_FORCE_COWORK: '1',
-        SA_COWORK_FORCE_PLATFORM: 'linux-arm64',
-        SA_TEST_DOWNLOAD_LOG: downloadLogPath,
-        DENO_REAL_BIN: Deno.execPath(),
-        PATH: `${mockBinDir}:${Deno.env.get('PATH') ?? ''}`,
-      },
-      stdout: 'piped',
-      stderr: 'piped',
-    }).output()
-
+    const result = await runCommand(join(pluginRoot, 'bin', 'mise'), [
+      '--version',
+    ], {
+      HOME: join(baseDir, 'home'),
+      SA_COWORK_PLUGIN_ROOT: pluginRoot,
+      SA_COWORK_FORCE_COWORK: '1',
+      SA_COWORK_FORCE_PLATFORM: 'linux-arm64',
+      SA_TEST_DOWNLOAD_LOG: downloadLogPath,
+      DENO_REAL_BIN: Deno.execPath(),
+      PATH: `${mockBinDir}:${Deno.env.get('PATH') ?? ''}`,
+    })
     const stderr = new TextDecoder().decode(result.stderr)
+
     assertEquals(result.success, false)
     assertStringIncludes(stderr, 'CLAUDE_PLUGIN_DATA')
   } finally {
@@ -393,22 +365,17 @@ Deno.test('bootstrap-cowork-runtime fails when plugin data is missing', async ()
   }
 })
 
-Deno.test('bootstrap-cowork-runtime fails on unsupported platform', async () => {
+Deno.test('plugin-local shims fail on unsupported platform', async () => {
   const baseDir = await Deno.makeTempDir()
   try {
     const { pluginRoot } = await createPluginFixture(baseDir)
     const { mockBinDir, downloadLogPath } = await createMockTooling(baseDir)
-    const bootstrapPath = join(
-      pluginRoot,
-      'skills',
-      'sa-cowork-runtime-test-install',
-      'scripts',
-      'bootstrap-cowork-runtime.sh',
-    )
     const env = createEnv(baseDir, pluginRoot, downloadLogPath, mockBinDir)
     env.SA_COWORK_FORCE_PLATFORM = 'darwin-arm64'
 
-    const result = await runScript(bootstrapPath, env)
+    const result = await runCommand(join(pluginRoot, 'bin', 'mise'), [
+      '--version',
+    ], env)
     const stderr = new TextDecoder().decode(result.stderr)
 
     assertEquals(result.success, false)
@@ -418,18 +385,11 @@ Deno.test('bootstrap-cowork-runtime fails on unsupported platform', async () => 
   }
 })
 
-Deno.test('verify-cowork-runtime runs the hello-world Deno script after bootstrap', async () => {
+Deno.test('verification script uses plugin-local shims and runs hello-world Deno', async () => {
   const baseDir = await Deno.makeTempDir()
   try {
     const { pluginRoot } = await createPluginFixture(baseDir)
     const { mockBinDir, downloadLogPath } = await createMockTooling(baseDir)
-    const verifyPath = join(
-      pluginRoot,
-      'skills',
-      'sa-cowork-runtime-test-install',
-      'scripts',
-      'verify-cowork-runtime.sh',
-    )
     const env = createEnv(baseDir, pluginRoot, downloadLogPath, mockBinDir)
 
     await Deno.mkdir(join(env.CLAUDE_PLUGIN_DATA, 'cowork-runtime-test'), {
@@ -440,13 +400,42 @@ Deno.test('verify-cowork-runtime runs the hello-world Deno script after bootstra
       '2026-01-01T00:00:00Z session-start hook executed\n',
     )
 
-    const result = await runScript(verifyPath, env)
+    const result = await runCommand(
+      join(
+        pluginRoot,
+        'skills',
+        'sa-cowork-runtime-test-install',
+        'scripts',
+        'verify-cowork-runtime.sh',
+      ),
+      [],
+      env,
+    )
     const stdout = new TextDecoder().decode(result.stdout)
 
     assertEquals(result.success, true)
+    assertStringIncludes(
+      stdout,
+      `shim mise: ${join(pluginRoot, 'bin', 'mise')}`,
+    )
+    assertStringIncludes(
+      stdout,
+      `shim deno: ${join(pluginRoot, 'bin', 'deno')}`,
+    )
+    assertStringIncludes(
+      stdout,
+      `cached deno: ${
+        join(
+          env.CLAUDE_PLUGIN_DATA,
+          'cowork-runtime-test',
+          'linux-arm64',
+          'bin',
+          'deno',
+        )
+      }`,
+    )
     assertStringIncludes(stdout, 'hook marker present')
     assertStringIncludes(stdout, 'Hello from Cowork runtime test')
-    assertStringIncludes(stdout, 'Deno version:')
   } finally {
     await Deno.remove(baseDir, { recursive: true })
   }
@@ -459,16 +448,12 @@ Deno.test('session-start-marker writes a durable hook marker file', async () => 
     const hookPath = join(pluginRoot, 'hooks', 'session-start-marker.sh')
     const pluginDataDir = join(baseDir, 'plugin-data')
 
-    const first = await new Deno.Command(hookPath, {
-      env: { CLAUDE_PLUGIN_DATA: pluginDataDir },
-      stdout: 'piped',
-      stderr: 'piped',
-    }).output()
-    const second = await new Deno.Command(hookPath, {
-      env: { CLAUDE_PLUGIN_DATA: pluginDataDir },
-      stdout: 'piped',
-      stderr: 'piped',
-    }).output()
+    const first = await runCommand(hookPath, [], {
+      CLAUDE_PLUGIN_DATA: pluginDataDir,
+    })
+    const second = await runCommand(hookPath, [], {
+      CLAUDE_PLUGIN_DATA: pluginDataDir,
+    })
 
     assertEquals(first.success, true)
     assertEquals(second.success, true)
@@ -481,7 +466,29 @@ Deno.test('session-start-marker writes a durable hook marker file', async () => 
     assertEquals(await exists(markerPath), true)
 
     const marker = await Deno.readTextFile(markerPath)
-    assert(marker.trim().split('\n').length >= 2)
+    assertEquals(marker.trim().split('\n').length >= 2, true)
+  } finally {
+    await Deno.remove(baseDir, { recursive: true })
+  }
+})
+
+Deno.test('bare mise and deno resolve to plugin shims when plugin bin is on PATH', async () => {
+  const baseDir = await Deno.makeTempDir()
+  try {
+    const { pluginRoot } = await createPluginFixture(baseDir)
+    const { mockBinDir, downloadLogPath } = await createMockTooling(baseDir)
+    const env = createEnv(baseDir, pluginRoot, downloadLogPath, mockBinDir)
+    env.PATH = `${join(pluginRoot, 'bin')}:${env.PATH}`
+
+    const miseResult = await runCommand('mise', ['--version'], env)
+    const denoResult = await runCommand('deno', ['--version'], env)
+    const miseStdout = new TextDecoder().decode(miseResult.stdout)
+    const denoStdout = new TextDecoder().decode(denoResult.stdout)
+
+    assertEquals(miseResult.success, true)
+    assertEquals(denoResult.success, true)
+    assertStringIncludes(miseStdout, 'mise test 2026.3.9')
+    assertStringIncludes(denoStdout, 'deno 2.6.8')
   } finally {
     await Deno.remove(baseDir, { recursive: true })
   }

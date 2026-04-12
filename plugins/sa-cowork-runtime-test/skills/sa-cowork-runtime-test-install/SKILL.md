@@ -1,6 +1,6 @@
 ---
 name: sa-cowork-runtime-test-install
-description: Install the Cowork runtime test plugin's cached mise/deno pair, verify the hook marker, and run a hello-world Deno script.
+description: Verify the Cowork runtime test plugin's hook marker and plugin-local mise/deno shims by running a tiny Deno script.
 ---
 
 # Cowork Runtime Test Install
@@ -9,10 +9,10 @@ Use this skill inside Claude Cowork guest shells on `linux-arm64`.
 
 ## What It Verifies
 
-- `mise` is downloaded into persistent plugin data and linked into the guest
-- `deno` is downloaded into persistent plugin data and linked into the guest
+- committed plugin-local `bin/mise` and `bin/deno` shims exist
+- the shims download `mise` and `deno` into persistent plugin data on demand
 - the plugin hook leaves a durable marker in `CLAUDE_PLUGIN_DATA`
-- a tiny Deno script can run successfully after bootstrap
+- a tiny Deno script can run successfully through the shimmed `deno`
 
 ## Command
 
@@ -26,14 +26,18 @@ CLAUDE_PLUGIN_DATA="${CLAUDE_PLUGIN_DATA}" \
 - `${CLAUDE_PLUGIN_DATA}/cowork-runtime-test/linux-arm64/bin/mise`
 - `${CLAUDE_PLUGIN_DATA}/cowork-runtime-test/linux-arm64/bin/deno`
 - `${CLAUDE_PLUGIN_DATA}/cowork-runtime-test/linux-arm64/runtime.env`
+- `${CLAUDE_PLUGIN_DATA}/cowork-runtime-test/linux-arm64/install-status.txt`
 - `${CLAUDE_PLUGIN_DATA}/cowork-runtime-test/session-start.log`
 
 ## Notes
 
 - This plugin does not install `stash` or `stashaway-agents`.
-- If you only want to bootstrap the runtime without running the Deno hello-world
-  check, run:
+- The committed shim entrypoints are:
+  - `${CLAUDE_PLUGIN_ROOT}/bin/mise`
+  - `${CLAUDE_PLUGIN_ROOT}/bin/deno`
+- If you only want to ensure the runtime cache exists without running the
+  verification flow, run:
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/skills/sa-cowork-runtime-test-install/scripts/bootstrap-cowork-runtime.sh
+${CLAUDE_PLUGIN_ROOT}/scripts/runtime-shim.sh ensure
 ```
