@@ -47,7 +47,6 @@ resolve_plugin_context() {
     "$CONTEXT_HELPER" resolve \
       --plugin-root "$PLUGIN_ROOT" \
       --plugin-name sa-mise \
-      --override-env-var SA_MISE_PLUGIN_DATA \
       --format shell 2>&1
   )" || fail "$resolved_context"
   eval "$resolved_context"

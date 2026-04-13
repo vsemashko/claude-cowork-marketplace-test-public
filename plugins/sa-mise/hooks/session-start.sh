@@ -15,7 +15,6 @@ if [ -x "$CONTEXT_HELPER" ]; then
     "$CONTEXT_HELPER" capture \
       --plugin-root "$PLUGIN_ROOT" \
       --plugin-name sa-mise \
-      --override-env-var SA_MISE_PLUGIN_DATA \
       --format shell 2>/dev/null
   )"; then
     eval "$resolved_context"

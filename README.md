@@ -23,7 +23,6 @@ Add this repo as a marketplace source in Claude:
 - ships a committed shim at `${CLAUDE_PLUGIN_ROOT}/bin/mise`
 - resolves plugin root from the shim path itself
 - resolves plugin data in this order:
-  - `SA_MISE_PLUGIN_DATA`
   - live `CLAUDE_PLUGIN_DATA`
   - shared Cowork session state
   - deterministic session-layout discovery
@@ -65,12 +64,12 @@ ${CLAUDE_PLUGIN_ROOT}/bin/mise --version
 1. Install the marketplace from this GitHub repo.
 2. Open a Claude plugin shell on `linux-arm64`.
 3. Run `mise --version`. If `mise` is not yet on `PATH`, use
-   `/absolute/path/to/bin/mise --version`.
+   `${CLAUDE_PLUGIN_ROOT}/bin/mise --version`.
 4. Verify the command succeeds and creates:
    - `${resolved_plugin_data}/sa-mise/linux-arm64/bin/mise`
    - `${resolved_plugin_data}/sa-mise/linux-arm64/install-status.txt`
    - `${CLAUDE_PLUGIN_DATA}/logs/sa-mise/session-start.log`
-   - `${session_mount}/.claude/plugins/state/cowork-plugin-context/sa-mise.env`
+   - `${CLAUDE_PLUGIN_DATA}/../state/cowork-plugin-context/sa-mise.env`
 
 ## Where To Check Hook Logs
 
@@ -82,7 +81,7 @@ The log file includes the hook timestamp, resolver source, and sample output
 from the shebang-driven Deno script. The shared resolver state is also captured
 in:
 
-- `${session_mount}/.claude/plugins/state/cowork-plugin-context/sa-mise.env`
+- `${CLAUDE_PLUGIN_DATA}/../state/cowork-plugin-context/sa-mise.env`
 
 ## Local Validation
 

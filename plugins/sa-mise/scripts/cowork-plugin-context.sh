@@ -6,7 +6,6 @@ command_name=''
 format='shell'
 plugin_name=''
 plugin_root=''
-override_env_var=''
 resolved_base_root=''
 resolved_plugin_data=''
 resolved_source=''
@@ -16,8 +15,8 @@ attempted_sources=''
 usage() {
   cat >&2 <<'EOF'
 Usage:
-  cowork-plugin-context.sh resolve --plugin-root <path> --plugin-name <name> [--override-env-var <ENV>] [--format shell]
-  cowork-plugin-context.sh capture --plugin-root <path> --plugin-name <name> [--override-env-var <ENV>] [--format shell]
+  cowork-plugin-context.sh resolve --plugin-root <path> --plugin-name <name> [--format shell]
+  cowork-plugin-context.sh capture --plugin-root <path> --plugin-name <name> [--format shell]
 EOF
   exit 1
 }
@@ -92,23 +91,10 @@ read_state_value() {
 }
 
 resolve_context() {
-  override_value=''
-
-  if [ -n "$override_env_var" ]; then
-    record_attempt 'explicit-override'
-    eval "override_value=\${$override_env_var:-}"
-    if [ -n "$override_value" ]; then
-      resolved_plugin_data="$override_value"
-      resolved_source='explicit-override'
-    fi
-  fi
-
-  if [ -z "$resolved_plugin_data" ]; then
-    record_attempt 'live-env'
-    if [ -n "${CLAUDE_PLUGIN_DATA:-}" ]; then
-      resolved_plugin_data="$CLAUDE_PLUGIN_DATA"
-      resolved_source='live-env'
-    fi
+  record_attempt 'live-env'
+  if [ -n "${CLAUDE_PLUGIN_DATA:-}" ]; then
+    resolved_plugin_data="$CLAUDE_PLUGIN_DATA"
+    resolved_source='live-env'
   fi
 
   resolved_base_root="$(derive_base_root || true)"
@@ -136,7 +122,7 @@ resolve_context() {
   fi
 
   if [ -z "$resolved_plugin_data" ]; then
-    fail "Unable to resolve Cowork plugin data for ${plugin_name}. Tried: ${attempted_sources}. Set ${override_env_var:-SA_MISE_PLUGIN_DATA} to override manually."
+    fail "Unable to resolve Cowork plugin data for ${plugin_name}. Tried: ${attempted_sources}."
   fi
 }
 
@@ -180,10 +166,6 @@ while [ $# -gt 0 ]; do
     --plugin-name)
       shift
       plugin_name="${1:-}"
-      ;;
-    --override-env-var)
-      shift
-      override_env_var="${1:-}"
       ;;
     --format)
       shift

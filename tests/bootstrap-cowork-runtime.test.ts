@@ -442,45 +442,6 @@ Deno.test('sa-mise fails clearly when plugin data cannot be resolved from any so
   }
 })
 
-Deno.test('sa-mise accepts SA_MISE_PLUGIN_DATA as the explicit override', async () => {
-  const baseDir = await Deno.makeTempDir()
-
-  try {
-    const { pluginRoot } = await createPluginFixture(baseDir, 'session')
-    const { downloadLogPath, mockBinDir } = await createMockTooling(baseDir)
-    const overridePluginData = join(baseDir, 'plugin-data-override')
-    const stateFile = expectedStateFile(pluginRoot)
-
-    const result = await runCommand(join(pluginRoot, 'bin', 'mise'), [
-      '--version',
-    ], {
-      DENO_REAL_BIN: Deno.execPath(),
-      HOME: join(baseDir, 'home'),
-      PATH: `${mockBinDir}:${Deno.env.get('PATH') ?? ''}`,
-      SA_MISE_PLUGIN_DATA: overridePluginData,
-      SA_MISE_FORCE_PLATFORM: 'linux-arm64',
-      SA_TEST_DOWNLOAD_LOG: downloadLogPath,
-      TMPDIR: join(baseDir, 'tmp'),
-    })
-    const stdout = new TextDecoder().decode(result.stdout)
-
-    assertEquals(result.success, true)
-    assertStringIncludes(stdout, 'mise latest test')
-    assertEquals(
-      await exists(
-        join(overridePluginData, 'sa-mise', 'linux-arm64', 'bin', 'mise'),
-      ),
-      true,
-    )
-    assertStringIncludes(
-      await Deno.readTextFile(stateFile),
-      'COWORK_PLUGIN_DATA_SOURCE=explicit-override',
-    )
-  } finally {
-    await Deno.remove(baseDir, { recursive: true })
-  }
-})
-
 Deno.test('sa-mise can still be resolved transparently from PATH', async () => {
   const baseDir = await Deno.makeTempDir()
 
