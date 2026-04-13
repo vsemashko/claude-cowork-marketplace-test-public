@@ -345,12 +345,22 @@ Deno.test('SessionStart hook records shared resolver diagnostics and runs the sh
       'linux-arm64',
       'hook-sample-status.txt',
     )
+    const logPath = join(
+      env.CLAUDE_PLUGIN_DATA,
+      'sa-mise',
+      'linux-arm64',
+      'hook-session-start.log',
+    )
     const statusContents = await Deno.readTextFile(statusPath)
+    const logContents = await Deno.readTextFile(logPath)
 
     assertEquals(hookResult.success, true)
     assertStringIncludes(statusContents, 'status=success')
     assertStringIncludes(statusContents, 'sa-mise hook sample ok')
     assertStringIncludes(statusContents, 'plugin_data_source=live-env')
+    assertStringIncludes(logContents, 'status=success')
+    assertStringIncludes(logContents, '-- stdout --')
+    assertStringIncludes(logContents, 'sa-mise hook sample ok')
     assertStringIncludes(statusContents, 'mise: mise latest test')
     assertStringIncludes(statusContents, 'deno:')
     assertEquals(await exists(stateFile), true)

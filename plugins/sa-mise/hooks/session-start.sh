@@ -10,6 +10,7 @@ PLUGIN_DATA_SOURCE=''
 PLUGIN_STATE_FILE=''
 BASE_TMP_DIR="${TMPDIR:-/tmp}"
 STATUS_FILE=''
+LOG_FILE=''
 TMP_OUTPUT=''
 TMP_ERROR=''
 
@@ -46,6 +47,31 @@ write_status() {
   } > "$STATUS_FILE"
 }
 
+append_log() {
+  status="$1"
+  if [ -z "$LOG_FILE" ]; then
+    return 0
+  fi
+
+  mkdir -p "$(dirname "$LOG_FILE")"
+  {
+    printf '=== %s status=%s ===\n' "$(date -u +"%Y-%m-%dT%H:%M:%SZ")" "$status"
+    printf 'plugin_root=%s\n' "$PLUGIN_ROOT"
+    printf 'plugin_data=%s\n' "$PLUGIN_DATA_DIR"
+    printf 'plugin_data_source=%s\n' "$PLUGIN_DATA_SOURCE"
+    printf 'plugin_state_file=%s\n' "$PLUGIN_STATE_FILE"
+    if [ -f "$TMP_OUTPUT" ]; then
+      printf -- '-- stdout --\n'
+      cat "$TMP_OUTPUT"
+    fi
+    if [ -f "$TMP_ERROR" ]; then
+      printf -- '-- stderr --\n'
+      cat "$TMP_ERROR"
+    fi
+    printf '\n'
+  } >> "$LOG_FILE"
+}
+
 mkdir -p "$BASE_TMP_DIR"
 TMP_OUTPUT="$(mktemp "${BASE_TMP_DIR}/sa-mise-hook-stdout.XXXXXX")"
 TMP_ERROR="$(mktemp "${BASE_TMP_DIR}/sa-mise-hook-stderr.XXXXXX")"
@@ -68,6 +94,7 @@ fi
 if [ -n "$PLUGIN_DATA_DIR" ]; then
   mkdir -p "${PLUGIN_DATA_DIR}/sa-mise/linux-arm64"
   STATUS_FILE="${PLUGIN_DATA_DIR}/sa-mise/linux-arm64/hook-sample-status.txt"
+  LOG_FILE="${PLUGIN_DATA_DIR}/sa-mise/linux-arm64/hook-session-start.log"
 fi
 
 export PATH="${PLUGIN_ROOT}/bin:${PATH}"
@@ -75,8 +102,10 @@ export CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT"
 
 if "${PLUGIN_ROOT}/scripts/examples/hook-sample.ts" >"$TMP_OUTPUT" 2>"$TMP_ERROR"; then
   write_status success
+  append_log success
 else
   write_status failure
+  append_log failure
 fi
 
 exit 0

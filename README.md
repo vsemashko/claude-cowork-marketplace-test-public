@@ -40,28 +40,51 @@ Add this repo as a marketplace source in Claude:
 
 The plugin exposes one minimal skill: `sa-mise`.
 
-Use it by running:
+If Claude has already put the plugin `bin/` directory on `PATH`, use `mise`
+directly:
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/bin/mise --version
+mise --version
 ```
 
 Or any other `mise` command:
 
 ```bash
-${CLAUDE_PLUGIN_ROOT}/bin/mise <args>
+mise <args>
+```
+
+If `mise` is not yet on `PATH`, the fallback is the plugin-local shim path:
+
+```bash
+${CLAUDE_PLUGIN_ROOT}/bin/mise --version
 ```
 
 ## Manual Acceptance
 
 1. Install the marketplace from this GitHub repo.
 2. Open a Claude plugin shell on `linux-arm64`.
-3. Run `/absolute/path/to/bin/mise --version`.
+3. Run `mise --version`. If `mise` is not yet on `PATH`, use
+   `/absolute/path/to/bin/mise --version`.
 4. Verify the command succeeds and creates:
    - `${resolved_plugin_data}/sa-mise/linux-arm64/bin/mise`
    - `${resolved_plugin_data}/sa-mise/linux-arm64/install-status.txt`
    - `${resolved_plugin_data}/sa-mise/linux-arm64/hook-sample-status.txt`
+   - `${resolved_plugin_data}/sa-mise/linux-arm64/hook-session-start.log`
    - `${session_mount}/.claude/plugins/state/cowork-plugin-context/sa-mise.env`
+
+## Where To Check Hook Logs
+
+The SessionStart hook writes:
+
+- machine-readable status:
+  `${resolved_plugin_data}/sa-mise/linux-arm64/hook-sample-status.txt`
+- append-only hook log:
+  `${resolved_plugin_data}/sa-mise/linux-arm64/hook-session-start.log`
+
+The log file includes the hook timestamp, resolver source, stdout, and stderr
+from the shebang sample. The shared resolver state is also captured in:
+
+- `${session_mount}/.claude/plugins/state/cowork-plugin-context/sa-mise.env`
 
 ## Local Validation
 

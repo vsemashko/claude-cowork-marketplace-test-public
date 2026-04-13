@@ -10,16 +10,22 @@ Use this skill when the user asks whether `mise` is available or wants to run a
 
 ## Command
 
-Run the plugin-local shim directly:
+If the plugin `bin/` directory is already on `PATH`, run `mise` directly:
 
 ```bash
-/absolute/path/to/bin/mise <args>
+mise <args>
 ```
 
 For a basic availability check:
 
 ```bash
-/absolute/path/to/bin/mise --version
+mise --version
+```
+
+If `mise` is not on `PATH`, fall back to the plugin-local shim path:
+
+```bash
+/absolute/path/to/bin/mise <args>
 ```
 
 ## Notes
@@ -32,4 +38,10 @@ For a basic availability check:
   session-layout discovery.
 - The SessionStart hook refreshes shared resolver diagnostics, but direct shim
   execution should work without manually passing `CLAUDE_PLUGIN_DATA`.
+- Check hook output here:
+  `${resolved_plugin_data}/sa-mise/linux-arm64/hook-sample-status.txt`
+- Check the append-only hook log here:
+  `${resolved_plugin_data}/sa-mise/linux-arm64/hook-session-start.log`
+- Check shared resolver diagnostics here:
+  `${session_mount}/.claude/plugins/state/cowork-plugin-context/sa-mise.env`
 - Later runs reuse the cached binary until that cache directory is removed.
