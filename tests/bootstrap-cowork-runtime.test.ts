@@ -185,8 +185,7 @@ function expectedStateFile(pluginRoot: string): string {
   return join(
     expectedDerivedPluginData(pluginRoot),
     'state',
-    'cowork-plugin-context',
-    'sa-mise.env',
+    'cowork-plugin-context.env',
   )
 }
 
@@ -221,7 +220,7 @@ Deno.test('sa-mise prefers live CLAUDE_PLUGIN_DATA and records shared resolver s
     assertStringIncludes(stdout, 'mise latest test')
     assertEquals(
       await exists(
-        join(env.CLAUDE_PLUGIN_DATA, 'sa-mise', 'linux-arm64', 'bin', 'mise'),
+        join(env.CLAUDE_PLUGIN_DATA, 'linux-arm64', 'bin', 'mise'),
       ),
       true,
     )
@@ -258,7 +257,7 @@ Deno.test('sa-mise resolves plugin data from session layout without explicit env
     assertStringIncludes(stdout, 'mise latest test')
     assertEquals(
       await exists(
-        join(derivedPluginData, 'sa-mise', 'linux-arm64', 'bin', 'mise'),
+        join(derivedPluginData, 'linux-arm64', 'bin', 'mise'),
       ),
       true,
     )
@@ -287,7 +286,6 @@ Deno.test('sa-mise works from a guest-shell style plugin path without explicit e
       await exists(
         join(
           expectedDerivedPluginData(pluginRoot),
-          'sa-mise',
           'linux-arm64',
           'bin',
           'mise',
@@ -342,17 +340,16 @@ Deno.test('SessionStart hook records shared resolver diagnostics and runs the sh
     const logPath = join(
       env.CLAUDE_PLUGIN_DATA,
       'logs',
-      'sa-mise',
       'session-start.log',
     )
     const logContents = await Deno.readTextFile(logPath)
 
     assertEquals(hookResult.success, true)
+    assertStringIncludes(logContents, 'timestamp=')
     assertStringIncludes(logContents, 'plugin_data_source=live-env')
-    assertStringIncludes(logContents, '-- sample output --')
-    assertStringIncludes(logContents, 'sa-mise SessionStart hook sample')
-    assertStringIncludes(logContents, 'mise: mise latest test')
-    assertStringIncludes(logContents, 'deno:')
+    assertStringIncludes(logContents, 'sample_name=sa-mise-session-start')
+    assertStringIncludes(logContents, 'mise_version=mise latest test')
+    assertStringIncludes(logContents, 'deno_version=')
     assertStringIncludes(logContents, 'hook_status=success')
     assertEquals(await exists(stateFile), true)
   } finally {
@@ -392,7 +389,7 @@ Deno.test('sa-mise falls back to shared session state before layout discovery', 
     assertStringIncludes(stdout, 'mise latest test')
     assertEquals(
       await exists(
-        join(env.CLAUDE_PLUGIN_DATA, 'sa-mise', 'linux-arm64', 'bin', 'mise'),
+        join(env.CLAUDE_PLUGIN_DATA, 'linux-arm64', 'bin', 'mise'),
       ),
       true,
     )

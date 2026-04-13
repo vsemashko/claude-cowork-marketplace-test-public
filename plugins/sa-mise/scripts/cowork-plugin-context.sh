@@ -66,7 +66,7 @@ derive_base_root() {
 
 state_file_path() {
   plugin_data_root="$1"
-  printf '%s/state/cowork-plugin-context/%s.env\n' "$plugin_data_root" "$plugin_name"
+  printf '%s/state/cowork-plugin-context.env\n' "$plugin_data_root"
 }
 
 derived_plugin_data_path() {

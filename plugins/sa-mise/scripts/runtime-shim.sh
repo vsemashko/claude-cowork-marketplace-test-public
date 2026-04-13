@@ -55,7 +55,7 @@ resolve_plugin_context() {
   PLUGIN_DATA_SOURCE="$COWORK_PLUGIN_DATA_SOURCE"
   PLUGIN_STATE_FILE="$COWORK_PLUGIN_STATE_FILE"
 
-  CACHE_ROOT="${PLUGIN_DATA_DIR}/sa-mise/linux-arm64"
+  CACHE_ROOT="${PLUGIN_DATA_DIR}/linux-arm64"
   CACHE_BIN_PATH="${CACHE_ROOT}/bin/mise"
   INSTALL_MARKER="${CACHE_ROOT}/install-status.txt"
   MISE_HOME_DIR="${CACHE_ROOT}/home"
@@ -99,7 +99,7 @@ write_install_marker() {
 }
 
 install_latest_mise() {
-  TMP_DIR="$(mktemp -d "${PLUGIN_DATA_DIR}/sa-mise/tmp.XXXXXX")"
+  TMP_DIR="$(mktemp -d "${PLUGIN_DATA_DIR}/tmp.XXXXXX")"
   installer_path="${TMP_DIR}/install.sh"
   staged_bin_path="${TMP_DIR}/mise"
   temp_home="${TMP_DIR}/home"

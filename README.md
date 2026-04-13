@@ -27,9 +27,9 @@ Add this repo as a marketplace source in Claude:
   - shared Cowork session state
   - deterministic session-layout discovery
 - captures shared resolver diagnostics in
-  `${CLAUDE_PLUGIN_DATA}/state/cowork-plugin-context/sa-mise.env`
+  `${CLAUDE_PLUGIN_DATA}/state/cowork-plugin-context.env`
 - installs the latest official `mise` binary on first use
-- caches the binary under `${CLAUDE_PLUGIN_DATA}/sa-mise/linux-arm64/bin/mise`
+- caches the binary under `${CLAUDE_PLUGIN_DATA}/linux-arm64/bin/mise`
 - reuses the cached binary until the plugin cache is deleted
 - never writes runtime files into `${HOME}`
 - includes a SessionStart hook sample that proves
@@ -66,22 +66,29 @@ ${CLAUDE_PLUGIN_ROOT}/bin/mise --version
 3. Run `mise --version`. If `mise` is not yet on `PATH`, use
    `${CLAUDE_PLUGIN_ROOT}/bin/mise --version`.
 4. Verify the command succeeds and creates:
-   - `${CLAUDE_PLUGIN_DATA}/sa-mise/linux-arm64/bin/mise`
-   - `${CLAUDE_PLUGIN_DATA}/sa-mise/linux-arm64/install-status.txt`
-   - `${CLAUDE_PLUGIN_DATA}/logs/sa-mise/session-start.log`
-   - `${CLAUDE_PLUGIN_DATA}/state/cowork-plugin-context/sa-mise.env`
+   - `${CLAUDE_PLUGIN_DATA}/linux-arm64/bin/mise`
+   - `${CLAUDE_PLUGIN_DATA}/linux-arm64/install-status.txt`
+   - `${CLAUDE_PLUGIN_DATA}/logs/session-start.log`
+   - `${CLAUDE_PLUGIN_DATA}/state/cowork-plugin-context.env`
 
 ## Where To Check Hook Logs
 
 The SessionStart hook writes:
 
-- append-only hook log: `${CLAUDE_PLUGIN_DATA}/logs/sa-mise/session-start.log`
+- append-only hook log: `${CLAUDE_PLUGIN_DATA}/logs/session-start.log`
 
-The log file includes the hook timestamp, resolver source, and sample output
-from the shebang-driven Deno script. The shared resolver state is also captured
-in:
+The log file is intentionally minimal. It records:
 
-- `${CLAUDE_PLUGIN_DATA}/state/cowork-plugin-context/sa-mise.env`
+- `timestamp`
+- `plugin_data_source`
+- `hook_status`
+- `sample_name`
+- `mise_version`
+- `deno_version`
+
+The shared resolver state is also captured in:
+
+- `${CLAUDE_PLUGIN_DATA}/state/cowork-plugin-context.env`
 
 ## Local Validation
 

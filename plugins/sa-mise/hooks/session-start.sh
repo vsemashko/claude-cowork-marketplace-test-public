@@ -7,8 +7,14 @@ PLUGIN_ROOT="$(CDPATH= cd -- "$HOOK_DIR/.." && pwd)"
 CONTEXT_HELPER="${PLUGIN_ROOT}/scripts/cowork-plugin-context.sh"
 PLUGIN_DATA_DIR=''
 PLUGIN_DATA_SOURCE=''
-PLUGIN_STATE_FILE=''
 LOG_FILE=''
+TMP_FILE=''
+
+cleanup() {
+  rm -f "${TMP_FILE:-}"
+}
+
+trap cleanup EXIT HUP INT TERM
 
 if [ -x "$CONTEXT_HELPER" ]; then
   if resolved_context="$(
@@ -20,12 +26,11 @@ if [ -x "$CONTEXT_HELPER" ]; then
     eval "$resolved_context"
     PLUGIN_DATA_DIR="$COWORK_PLUGIN_DATA"
     PLUGIN_DATA_SOURCE="$COWORK_PLUGIN_DATA_SOURCE"
-    PLUGIN_STATE_FILE="$COWORK_PLUGIN_STATE_FILE"
   fi
 fi
 
 if [ -n "$PLUGIN_DATA_DIR" ]; then
-  LOG_FILE="${PLUGIN_DATA_DIR}/logs/sa-mise/session-start.log"
+  LOG_FILE="${PLUGIN_DATA_DIR}/logs/session-start.log"
   mkdir -p "$(dirname "$LOG_FILE")"
 fi
 
@@ -37,18 +42,23 @@ if [ -z "$LOG_FILE" ]; then
 fi
 
 {
-  printf '=== %s SessionStart ===\n' "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-  printf 'plugin_root=%s\n' "$PLUGIN_ROOT"
-  printf 'plugin_data=%s\n' "$PLUGIN_DATA_DIR"
+  printf 'timestamp=%s\n' "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
   printf 'plugin_data_source=%s\n' "$PLUGIN_DATA_SOURCE"
-  printf 'plugin_state_file=%s\n' "$PLUGIN_STATE_FILE"
-  printf -- '-- sample output --\n'
 } >> "$LOG_FILE"
 
-if "${PLUGIN_ROOT}/scripts/examples/hook-sample.ts" >>"$LOG_FILE" 2>&1; then
-  printf 'hook_status=success\n\n' >> "$LOG_FILE"
+mkdir -p "${TMPDIR:-/tmp}"
+TMP_FILE="$(mktemp "${TMPDIR:-/tmp}/sa-mise-session-start.XXXXXX")"
+
+if "${PLUGIN_ROOT}/scripts/examples/hook-sample.ts" >"$TMP_FILE" 2>&1; then
+  printf 'hook_status=success\n' >> "$LOG_FILE"
+  grep -E '^(sample_name|mise_version|deno_version)=' "$TMP_FILE" >> "$LOG_FILE" || true
+  printf '\n' >> "$LOG_FILE"
 else
-  printf 'hook_status=failure\n\n' >> "$LOG_FILE"
+  printf 'hook_status=failure\n' >> "$LOG_FILE"
+  if error_line="$(tail -n 1 "$TMP_FILE" 2>/dev/null)"; then
+    printf 'hook_error=%s\n' "$error_line" >> "$LOG_FILE"
+  fi
+  printf '\n' >> "$LOG_FILE"
 fi
 
 exit 0
