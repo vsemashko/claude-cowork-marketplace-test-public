@@ -339,30 +339,21 @@ Deno.test('SessionStart hook records shared resolver diagnostics and runs the sh
       [],
       env,
     )
-    const statusPath = join(
-      env.CLAUDE_PLUGIN_DATA,
-      'sa-mise',
-      'linux-arm64',
-      'hook-sample-status.txt',
-    )
     const logPath = join(
       env.CLAUDE_PLUGIN_DATA,
+      'logs',
       'sa-mise',
-      'linux-arm64',
-      'hook-session-start.log',
+      'session-start.log',
     )
-    const statusContents = await Deno.readTextFile(statusPath)
     const logContents = await Deno.readTextFile(logPath)
 
     assertEquals(hookResult.success, true)
-    assertStringIncludes(statusContents, 'status=success')
-    assertStringIncludes(statusContents, 'sa-mise hook sample ok')
-    assertStringIncludes(statusContents, 'plugin_data_source=live-env')
-    assertStringIncludes(logContents, 'status=success')
-    assertStringIncludes(logContents, '-- stdout --')
-    assertStringIncludes(logContents, 'sa-mise hook sample ok')
-    assertStringIncludes(statusContents, 'mise: mise latest test')
-    assertStringIncludes(statusContents, 'deno:')
+    assertStringIncludes(logContents, 'plugin_data_source=live-env')
+    assertStringIncludes(logContents, '-- sample output --')
+    assertStringIncludes(logContents, 'sa-mise SessionStart hook sample')
+    assertStringIncludes(logContents, 'mise: mise latest test')
+    assertStringIncludes(logContents, 'deno:')
+    assertStringIncludes(logContents, 'hook_status=success')
     assertEquals(await exists(stateFile), true)
   } finally {
     await Deno.remove(baseDir, { recursive: true })

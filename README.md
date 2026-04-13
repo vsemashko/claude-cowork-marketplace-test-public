@@ -33,8 +33,9 @@ Add this repo as a marketplace source in Claude:
 - caches the binary under `${resolved_plugin_data}/sa-mise/linux-arm64/bin/mise`
 - reuses the cached binary until the plugin cache is deleted
 - never writes runtime files into `${HOME}`
-- includes an internal SessionStart hook sample that proves
-  `#!/usr/bin/env -S mise exec deno@latest -- deno run` works end to end
+- includes a SessionStart hook sample that proves
+  `#!/usr/bin/env -S mise exec deno@latest -- deno run` works for registered
+  hooks too
 
 ## Skill
 
@@ -68,21 +69,18 @@ ${CLAUDE_PLUGIN_ROOT}/bin/mise --version
 4. Verify the command succeeds and creates:
    - `${resolved_plugin_data}/sa-mise/linux-arm64/bin/mise`
    - `${resolved_plugin_data}/sa-mise/linux-arm64/install-status.txt`
-   - `${resolved_plugin_data}/sa-mise/linux-arm64/hook-sample-status.txt`
-   - `${resolved_plugin_data}/sa-mise/linux-arm64/hook-session-start.log`
+   - `${CLAUDE_PLUGIN_DATA}/logs/sa-mise/session-start.log`
    - `${session_mount}/.claude/plugins/state/cowork-plugin-context/sa-mise.env`
 
 ## Where To Check Hook Logs
 
 The SessionStart hook writes:
 
-- machine-readable status:
-  `${resolved_plugin_data}/sa-mise/linux-arm64/hook-sample-status.txt`
-- append-only hook log:
-  `${resolved_plugin_data}/sa-mise/linux-arm64/hook-session-start.log`
+- append-only hook log: `${CLAUDE_PLUGIN_DATA}/logs/sa-mise/session-start.log`
 
-The log file includes the hook timestamp, resolver source, stdout, and stderr
-from the shebang sample. The shared resolver state is also captured in:
+The log file includes the hook timestamp, resolver source, and sample output
+from the shebang-driven Deno script. The shared resolver state is also captured
+in:
 
 - `${session_mount}/.claude/plugins/state/cowork-plugin-context/sa-mise.env`
 

@@ -7,6 +7,7 @@ const miseVersion = await new Deno.Command('mise', {
 
 const miseStdout = new TextDecoder().decode(miseVersion.stdout).trim()
 
-console.log('sa-mise hook sample ok')
+console.log('sa-mise SessionStart hook sample')
 console.log(`mise: ${miseStdout}`)
 console.log(`deno: ${Deno.version.deno}`)
+console.log('hook sample completed')

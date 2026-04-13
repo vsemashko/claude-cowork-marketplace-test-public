@@ -38,10 +38,8 @@ If `mise` is not on `PATH`, fall back to the plugin-local shim path:
   session-layout discovery.
 - The SessionStart hook refreshes shared resolver diagnostics, but direct shim
   execution should work without manually passing `CLAUDE_PLUGIN_DATA`.
-- Check hook output here:
-  `${resolved_plugin_data}/sa-mise/linux-arm64/hook-sample-status.txt`
-- Check the append-only hook log here:
-  `${resolved_plugin_data}/sa-mise/linux-arm64/hook-session-start.log`
+- Registered hook logs are written here:
+  `${CLAUDE_PLUGIN_DATA}/logs/sa-mise/session-start.log`
 - Check shared resolver diagnostics here:
   `${session_mount}/.claude/plugins/state/cowork-plugin-context/sa-mise.env`
 - Later runs reuse the cached binary until that cache directory is removed.
