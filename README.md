@@ -61,8 +61,6 @@ Then install `dist/sa-cowork-config-mcp.mcpb` in Claude Desktop and configure:
 - includes a SessionStart hook sample that proves
   `#!/usr/bin/env -S mise exec deno@latest -- deno run` works for registered
   hooks too
-- queries the installed `sa-cowork-config-mcp` MCP server directly from the
-  SessionStart hook when that MCPB is installed
 
 ## Skill
 
@@ -90,13 +88,11 @@ ${CLAUDE_PLUGIN_ROOT}/bin/mise --version
 ## Manual Acceptance
 
 1. Install the marketplace from this GitHub repo.
-2. Install and configure the `sa-cowork-config-mcp` MCPB if you want to verify
-   direct hook-side MCP access.
-3. Open a Claude plugin shell on a platform supported by the official `mise`
+2. Open a Claude plugin shell on a platform supported by the official `mise`
    installer.
-4. Run `mise --version`. If `mise` is not yet on `PATH`, use
+3. Run `mise --version`. If `mise` is not yet on `PATH`, use
    `${CLAUDE_PLUGIN_ROOT}/bin/mise --version`.
-5. Verify the command succeeds and creates:
+4. Verify the command succeeds and creates:
    - `${CLAUDE_PLUGIN_DATA}/${platform}/bin/mise`
    - `${CLAUDE_PLUGIN_DATA}/${platform}/install-status.txt`
    - `${CLAUDE_PLUGIN_DATA}/logs/session-start.log`
@@ -116,26 +112,10 @@ The log file is intentionally minimal. It records:
 - `sample_name`
 - `mise_version`
 - `deno_version`
-- `mcp_config_source`
-- `mcp_status`
-- `mcp_dd_api_key_present`
-- `mcp_dd_api_key_length`
-- `mcp_dd_site`
-- `mcp_gitlab_token_present`
-- `mcp_gitlab_token_length`
-
-For temporary MCP diagnosis, the same log also includes `mcp_diag_*` fields that
-show which Claude config paths, extension artifacts, and matching process hints
-were visible from the hook runtime.
 
 The shared resolver state is also captured in:
 
 - `${CLAUDE_PLUGIN_DATA}/state/cowork-plugin-context.env`
-
-When the config MCPB is installed, the SessionStart hook reads Claude's native
-MCP config from `${HOME}/.claude.json`, launches the configured stdio MCP
-server, calls `check_config`, and appends the sanitized result to the same hook
-log.
 
 ## Local Validation
 

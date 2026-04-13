@@ -3,7 +3,7 @@
   "name": "sa-cowork-config-mcp",
   "display_name": "Cowork Config MCP",
   "version": "1.0.0",
-  "description": "MCP server for testing user_config injection and direct hook-side MCP access",
+  "description": "MCP server for testing user_config injection in a separate MCPB bundle",
   "author": {
     "name": "Vladimir Semashko",
     "url": "https://github.com/vsemashko"
