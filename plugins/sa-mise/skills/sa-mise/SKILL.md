@@ -40,5 +40,5 @@ ${CLAUDE_PLUGIN_ROOT}/bin/mise <args>
 - Registered hook logs are written here:
   `${CLAUDE_PLUGIN_DATA}/logs/sa-mise/session-start.log`
 - Check shared resolver diagnostics here:
-  `${CLAUDE_PLUGIN_DATA}/../state/cowork-plugin-context/sa-mise.env`
+  `${CLAUDE_PLUGIN_DATA}/state/cowork-plugin-context/sa-mise.env`
 - Later runs reuse the cached binary until that cache directory is removed.

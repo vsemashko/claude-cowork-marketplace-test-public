@@ -65,8 +65,8 @@ derive_base_root() {
 }
 
 state_file_path() {
-  base_root="$1"
-  printf '%s/.claude/plugins/state/cowork-plugin-context/%s.env\n' "$base_root" "$plugin_name"
+  plugin_data_root="$1"
+  printf '%s/state/cowork-plugin-context/%s.env\n' "$plugin_data_root" "$plugin_name"
 }
 
 derived_plugin_data_path() {
@@ -91,15 +91,21 @@ read_state_value() {
 }
 
 resolve_context() {
+  derived_plugin_data=''
+
   record_attempt 'live-env'
   if [ -n "${CLAUDE_PLUGIN_DATA:-}" ]; then
     resolved_plugin_data="$CLAUDE_PLUGIN_DATA"
     resolved_source='live-env'
+    resolved_state_file="$(state_file_path "$resolved_plugin_data")"
   fi
 
   resolved_base_root="$(derive_base_root || true)"
   if [ -n "$resolved_base_root" ]; then
-    resolved_state_file="$(state_file_path "$resolved_base_root")"
+    derived_plugin_data="$(derived_plugin_data_path "$resolved_base_root")"
+    if [ -z "$resolved_state_file" ]; then
+      resolved_state_file="$(state_file_path "$derived_plugin_data")"
+    fi
   fi
 
   if [ -z "$resolved_plugin_data" ]; then
@@ -115,14 +121,19 @@ resolve_context() {
 
   if [ -z "$resolved_plugin_data" ]; then
     record_attempt 'layout-discovery'
-    if [ -n "$resolved_base_root" ]; then
-      resolved_plugin_data="$(derived_plugin_data_path "$resolved_base_root")"
+    if [ -n "$derived_plugin_data" ]; then
+      resolved_plugin_data="$derived_plugin_data"
       resolved_source='layout-discovery'
+      resolved_state_file="$(state_file_path "$resolved_plugin_data")"
     fi
   fi
 
   if [ -z "$resolved_plugin_data" ]; then
     fail "Unable to resolve Cowork plugin data for ${plugin_name}. Tried: ${attempted_sources}."
+  fi
+
+  if [ -z "$resolved_state_file" ]; then
+    resolved_state_file="$(state_file_path "$resolved_plugin_data")"
   fi
 }
 

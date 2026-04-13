@@ -27,7 +27,7 @@ Add this repo as a marketplace source in Claude:
   - shared Cowork session state
   - deterministic session-layout discovery
 - captures shared resolver diagnostics in
-  `.claude/plugins/state/cowork-plugin-context/sa-mise.env`
+  `${CLAUDE_PLUGIN_DATA}/state/cowork-plugin-context/sa-mise.env`
 - installs the latest official `mise` binary on first use
 - caches the binary under `${resolved_plugin_data}/sa-mise/linux-arm64/bin/mise`
 - reuses the cached binary until the plugin cache is deleted
@@ -69,7 +69,7 @@ ${CLAUDE_PLUGIN_ROOT}/bin/mise --version
    - `${resolved_plugin_data}/sa-mise/linux-arm64/bin/mise`
    - `${resolved_plugin_data}/sa-mise/linux-arm64/install-status.txt`
    - `${CLAUDE_PLUGIN_DATA}/logs/sa-mise/session-start.log`
-   - `${CLAUDE_PLUGIN_DATA}/../state/cowork-plugin-context/sa-mise.env`
+   - `${CLAUDE_PLUGIN_DATA}/state/cowork-plugin-context/sa-mise.env`
 
 ## Where To Check Hook Logs
 
@@ -81,7 +81,7 @@ The log file includes the hook timestamp, resolver source, and sample output
 from the shebang-driven Deno script. The shared resolver state is also captured
 in:
 
-- `${CLAUDE_PLUGIN_DATA}/../state/cowork-plugin-context/sa-mise.env`
+- `${CLAUDE_PLUGIN_DATA}/state/cowork-plugin-context/sa-mise.env`
 
 ## Local Validation
 

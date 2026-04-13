@@ -141,12 +141,12 @@ exit 1
 
 function createEnv(
   baseDir: string,
-  _pluginRoot: string,
+  pluginRoot: string,
   downloadLogPath: string,
   mockBinDir: string,
 ): Record<string, string> {
   return {
-    CLAUDE_PLUGIN_DATA: join(baseDir, 'plugin-data-live'),
+    CLAUDE_PLUGIN_DATA: expectedDerivedPluginData(pluginRoot),
     DENO_REAL_BIN: Deno.execPath(),
     HOME: join(baseDir, 'home'),
     PATH: `${mockBinDir}:${Deno.env.get('PATH') ?? ''}`,
@@ -183,7 +183,7 @@ function expectedDerivedPluginData(pluginRoot: string): string {
 
 function expectedStateFile(pluginRoot: string): string {
   return join(
-    dirname(expectedDerivedPluginData(pluginRoot)),
+    expectedDerivedPluginData(pluginRoot),
     'state',
     'cowork-plugin-context',
     'sa-mise.env',
@@ -368,7 +368,6 @@ Deno.test('sa-mise falls back to shared session state before layout discovery', 
     const { downloadLogPath, mockBinDir } = await createMockTooling(baseDir)
     const env = createEnv(baseDir, pluginRoot, downloadLogPath, mockBinDir)
     const stateFile = expectedStateFile(pluginRoot)
-    const derivedPluginData = expectedDerivedPluginData(pluginRoot)
 
     const warmupResult = await runCommand(join(pluginRoot, 'bin', 'mise'), [
       '--version',
@@ -396,12 +395,6 @@ Deno.test('sa-mise falls back to shared session state before layout discovery', 
         join(env.CLAUDE_PLUGIN_DATA, 'sa-mise', 'linux-arm64', 'bin', 'mise'),
       ),
       true,
-    )
-    assertEquals(
-      await exists(
-        join(derivedPluginData, 'sa-mise', 'linux-arm64', 'bin', 'mise'),
-      ),
-      false,
     )
     assertStringIncludes(
       await Deno.readTextFile(stateFile),
