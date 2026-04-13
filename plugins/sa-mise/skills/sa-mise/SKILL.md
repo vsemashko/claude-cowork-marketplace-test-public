@@ -32,7 +32,7 @@ ${CLAUDE_PLUGIN_ROOT}/bin/mise <args>
 
 - The shim resolves plugin root from its own path.
 - On first use it installs the latest official `mise` binary into:
-  `${CLAUDE_PLUGIN_DATA}/linux-arm64/bin/mise`
+  `${CLAUDE_PLUGIN_DATA}/${platform}/bin/mise`
 - Plugin data is resolved in this order: live `CLAUDE_PLUGIN_DATA`, shared
   Cowork session state, then deterministic session-layout discovery.
 - The SessionStart hook refreshes shared resolver diagnostics, but direct shim

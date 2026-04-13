@@ -18,10 +18,8 @@ trap cleanup EXIT HUP INT TERM
 
 if [ -x "$CONTEXT_HELPER" ]; then
   if resolved_context="$(
-    "$CONTEXT_HELPER" capture \
-      --plugin-root "$PLUGIN_ROOT" \
-      --plugin-name sa-mise \
-      --format shell 2>/dev/null
+    "$CONTEXT_HELPER" resolve \
+      --plugin-root "$PLUGIN_ROOT" 2>/dev/null
   )"; then
     eval "$resolved_context"
     PLUGIN_DATA_DIR="$COWORK_PLUGIN_DATA"
@@ -49,7 +47,7 @@ fi
 mkdir -p "${TMPDIR:-/tmp}"
 TMP_FILE="$(mktemp "${TMPDIR:-/tmp}/sa-mise-session-start.XXXXXX")"
 
-if "${PLUGIN_ROOT}/scripts/examples/hook-sample.ts" >"$TMP_FILE" 2>&1; then
+if "${PLUGIN_ROOT}/scripts/session-start-sample.ts" >"$TMP_FILE" 2>&1; then
   printf 'hook_status=success\n' >> "$LOG_FILE"
   grep -E '^(sample_name|mise_version|deno_version)=' "$TMP_FILE" >> "$LOG_FILE" || true
   printf '\n' >> "$LOG_FILE"

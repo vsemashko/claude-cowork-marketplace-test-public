@@ -35,7 +35,7 @@ Deno.test('sa-mise plugin ships the expected minimal assets', async () => {
     true,
   )
   assertEquals(
-    await exists(join(pluginRoot, 'scripts', 'examples', 'hook-sample.ts')),
+    await exists(join(pluginRoot, 'scripts', 'session-start-sample.ts')),
     true,
   )
   assertEquals(

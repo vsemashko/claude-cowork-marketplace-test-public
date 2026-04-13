@@ -47,7 +47,7 @@ async function createPluginFixture(
     'hooks/hooks.json',
     'hooks/session-start.sh',
     'scripts/cowork-plugin-context.sh',
-    'scripts/examples/hook-sample.ts',
+    'scripts/session-start-sample.ts',
     'scripts/runtime-shim.sh',
     'skills/sa-mise/SKILL.md',
   ]
@@ -156,6 +156,13 @@ function createEnv(
   }
 }
 
+function platformRoot(
+  pluginDataRoot: string,
+  platform = 'linux-arm64',
+): string {
+  return join(pluginDataRoot, platform)
+}
+
 function expectedDerivedPluginData(pluginRoot: string): string {
   const remotePluginsMarker = '/.remote-plugins/'
   const coworkCacheMarker = '/cowork_plugins/'
@@ -220,15 +227,25 @@ Deno.test('sa-mise prefers live CLAUDE_PLUGIN_DATA and records shared resolver s
     assertStringIncludes(stdout, 'mise latest test')
     assertEquals(
       await exists(
-        join(env.CLAUDE_PLUGIN_DATA, 'linux-arm64', 'bin', 'mise'),
+        join(platformRoot(env.CLAUDE_PLUGIN_DATA), 'bin', 'mise'),
       ),
       true,
     )
     assertEquals(await exists(stateFile), true)
-    assertStringIncludes(
-      await Deno.readTextFile(stateFile),
-      'COWORK_PLUGIN_DATA_SOURCE=live-env',
+    const stateContents = await Deno.readTextFile(stateFile)
+    assertStringIncludes(stateContents, 'COWORK_PLUGIN_DATA_SOURCE=live-env')
+    assertEquals(stateContents.includes('COWORK_PLUGIN_NAME='), false)
+    assertEquals(stateContents.includes('COWORK_PLUGIN_ATTEMPTS='), false)
+
+    const installMarker = await Deno.readTextFile(
+      join(platformRoot(env.CLAUDE_PLUGIN_DATA), 'install-status.txt'),
     )
+    assertStringIncludes(installMarker, 'installed_at=')
+    assertStringIncludes(installMarker, 'mise_path=')
+    assertStringIncludes(installMarker, 'installer=')
+    assertStringIncludes(installMarker, 'plugin_data_source=live-env')
+    assertEquals(installMarker.includes('cache_root='), false)
+    assertEquals(installMarker.includes('plugin_state_file='), false)
 
     const downloadLog = await Deno.readTextFile(downloadLogPath)
     assertEquals(downloadLog.trim().split('\n').length, 1)
@@ -257,7 +274,7 @@ Deno.test('sa-mise resolves plugin data from session layout without explicit env
     assertStringIncludes(stdout, 'mise latest test')
     assertEquals(
       await exists(
-        join(derivedPluginData, 'linux-arm64', 'bin', 'mise'),
+        join(platformRoot(derivedPluginData), 'bin', 'mise'),
       ),
       true,
     )
@@ -285,8 +302,7 @@ Deno.test('sa-mise works from a guest-shell style plugin path without explicit e
     assertEquals(
       await exists(
         join(
-          expectedDerivedPluginData(pluginRoot),
-          'linux-arm64',
+          platformRoot(expectedDerivedPluginData(pluginRoot)),
           'bin',
           'mise',
         ),
@@ -389,7 +405,7 @@ Deno.test('sa-mise falls back to shared session state before layout discovery', 
     assertStringIncludes(stdout, 'mise latest test')
     assertEquals(
       await exists(
-        join(env.CLAUDE_PLUGIN_DATA, 'linux-arm64', 'bin', 'mise'),
+        join(platformRoot(env.CLAUDE_PLUGIN_DATA), 'bin', 'mise'),
       ),
       true,
     )
@@ -451,6 +467,46 @@ Deno.test('sa-mise can still be resolved transparently from PATH', async () => {
   }
 })
 
+Deno.test('sa-mise supports the installer platform keys we normalize to', async () => {
+  const supportedPlatforms = [
+    'linux-arm64',
+    'linux-arm64-musl',
+    'linux-x64',
+    'linux-x64-musl',
+    'linux-armv7',
+    'linux-armv7-musl',
+    'macos-arm64',
+    'macos-x64',
+  ]
+
+  for (const platform of supportedPlatforms) {
+    const baseDir = await Deno.makeTempDir()
+
+    try {
+      const { pluginRoot } = await createPluginFixture(baseDir, 'session')
+      const { downloadLogPath, mockBinDir } = await createMockTooling(baseDir)
+      const env = createEnv(baseDir, pluginRoot, downloadLogPath, mockBinDir)
+      env.SA_MISE_FORCE_PLATFORM = platform
+
+      const result = await runCommand(join(pluginRoot, 'bin', 'mise'), [
+        '--version',
+      ], env)
+      const stdout = new TextDecoder().decode(result.stdout)
+
+      assertEquals(result.success, true)
+      assertStringIncludes(stdout, 'mise latest test')
+      assertEquals(
+        await exists(
+          join(platformRoot(env.CLAUDE_PLUGIN_DATA, platform), 'bin', 'mise'),
+        ),
+        true,
+      )
+    } finally {
+      await Deno.remove(baseDir, { recursive: true })
+    }
+  }
+})
+
 Deno.test('sa-mise fails on unsupported platforms', async () => {
   const baseDir = await Deno.makeTempDir()
 
@@ -458,7 +514,7 @@ Deno.test('sa-mise fails on unsupported platforms', async () => {
     const { pluginRoot } = await createPluginFixture(baseDir, 'session')
     const { downloadLogPath, mockBinDir } = await createMockTooling(baseDir)
     const env = createEnv(baseDir, pluginRoot, downloadLogPath, mockBinDir)
-    env.SA_MISE_FORCE_PLATFORM = 'darwin-arm64'
+    env.SA_MISE_FORCE_PLATFORM = 'windows-x64'
 
     const result = await runCommand(join(pluginRoot, 'bin', 'mise'), [
       '--version',

@@ -2,11 +2,7 @@
 
 set -eu
 
-command_name=''
-format='shell'
-plugin_name=''
 plugin_root=''
-resolved_base_root=''
 resolved_plugin_data=''
 resolved_source=''
 resolved_state_file=''
@@ -15,8 +11,7 @@ attempted_sources=''
 usage() {
   cat >&2 <<'EOF'
 Usage:
-  cowork-plugin-context.sh resolve --plugin-root <path> --plugin-name <name> [--format shell]
-  cowork-plugin-context.sh capture --plugin-root <path> --plugin-name <name> [--format shell]
+  cowork-plugin-context.sh resolve --plugin-root <path>
 EOF
   exit 1
 }
@@ -91,6 +86,7 @@ read_state_value() {
 }
 
 resolve_context() {
+  resolved_base_root="$(derive_base_root || true)"
   derived_plugin_data=''
 
   record_attempt 'live-env'
@@ -100,7 +96,6 @@ resolve_context() {
     resolved_state_file="$(state_file_path "$resolved_plugin_data")"
   fi
 
-  resolved_base_root="$(derive_base_root || true)"
   if [ -n "$resolved_base_root" ]; then
     derived_plugin_data="$(derived_plugin_data_path "$resolved_base_root")"
     if [ -z "$resolved_state_file" ]; then
@@ -129,7 +124,7 @@ resolve_context() {
   fi
 
   if [ -z "$resolved_plugin_data" ]; then
-    fail "Unable to resolve Cowork plugin data for ${plugin_name}. Tried: ${attempted_sources}."
+    fail "Unable to resolve Cowork plugin data. Tried: ${attempted_sources}."
   fi
 
   if [ -z "$resolved_state_file" ]; then
@@ -138,34 +133,22 @@ resolve_context() {
 }
 
 write_state_file() {
-  [ -n "$resolved_state_file" ] || return 0
-
   mkdir -p "$(dirname "$resolved_state_file")"
   {
-    printf 'COWORK_PLUGIN_NAME=%s\n' "$plugin_name"
-    printf 'COWORK_PLUGIN_ROOT=%s\n' "$plugin_root"
     printf 'COWORK_PLUGIN_DATA=%s\n' "$resolved_plugin_data"
     printf 'COWORK_PLUGIN_DATA_SOURCE=%s\n' "$resolved_source"
-    printf 'COWORK_PLUGIN_ATTEMPTS=%s\n' "$attempted_sources"
-    if [ -n "$resolved_base_root" ]; then
-      printf 'COWORK_PLUGIN_BASE_ROOT=%s\n' "$resolved_base_root"
-    fi
     printf 'CAPTURED_AT=%s\n' "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
   } > "$resolved_state_file"
 }
 
 emit_shell() {
-  printf 'export COWORK_PLUGIN_ROOT=%s\n' "$(shell_quote "$plugin_root")"
-  printf 'export COWORK_PLUGIN_NAME=%s\n' "$(shell_quote "$plugin_name")"
   printf 'export COWORK_PLUGIN_DATA=%s\n' "$(shell_quote "$resolved_plugin_data")"
   printf 'export COWORK_PLUGIN_DATA_SOURCE=%s\n' "$(shell_quote "$resolved_source")"
-  printf 'export COWORK_PLUGIN_ATTEMPTS=%s\n' "$(shell_quote "$attempted_sources")"
   printf 'export COWORK_PLUGIN_STATE_FILE=%s\n' "$(shell_quote "$resolved_state_file")"
-  printf 'export COWORK_PLUGIN_BASE_ROOT=%s\n' "$(shell_quote "$resolved_base_root")"
 }
 
 command_name="${1:-}"
-[ -n "$command_name" ] || usage
+[ "$command_name" = 'resolve' ] || usage
 shift
 
 while [ $# -gt 0 ]; do
@@ -173,14 +156,6 @@ while [ $# -gt 0 ]; do
     --plugin-root)
       shift
       plugin_root="${1:-}"
-      ;;
-    --plugin-name)
-      shift
-      plugin_name="${1:-}"
-      ;;
-    --format)
-      shift
-      format="${1:-}"
       ;;
     *)
       usage
@@ -190,21 +165,7 @@ while [ $# -gt 0 ]; do
 done
 
 [ -n "$plugin_root" ] || fail 'plugin root is required'
-[ -n "$plugin_name" ] || fail 'plugin name is required'
-[ "$format" = 'shell' ] || fail "unsupported format: $format"
 
 resolve_context
-
-case "$command_name" in
-  resolve)
-    write_state_file
-    emit_shell
-    ;;
-  capture)
-    write_state_file
-    emit_shell
-    ;;
-  *)
-    usage
-    ;;
-esac
+write_state_file
+emit_shell

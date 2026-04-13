@@ -7,6 +7,7 @@ PLUGIN_ROOT="$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)"
 CONTEXT_HELPER="${PLUGIN_ROOT}/scripts/cowork-plugin-context.sh"
 TMP_DIR=''
 INSTALL_SCRIPT_URL="${SA_MISE_INSTALL_SCRIPT_URL:-https://mise.jdx.dev/install.sh}"
+PLATFORM=''
 
 fail() {
   printf '%s\n' "$1" >&2
@@ -27,15 +28,59 @@ detect_platform() {
     return 0
   fi
 
-  os="$(uname -s 2>/dev/null | tr '[:upper:]' '[:lower:]')"
-  arch="$(uname -m 2>/dev/null | tr '[:upper:]' '[:lower:]')"
+  os_raw="$(uname -s 2>/dev/null)"
+  arch_raw="$(uname -m 2>/dev/null)"
+  os=''
+  arch=''
+  musl=''
 
-  case "$os/$arch" in
-    linux/aarch64|linux/arm64)
-      printf 'linux-arm64\n'
+  case "$os_raw" in
+    Darwin)
+      os='macos'
+      ;;
+    Linux)
+      os='linux'
       ;;
     *)
-      printf '%s-%s\n' "$os" "$arch"
+      fail "Unsupported sa-mise platform: ${os_raw}-${arch_raw}"
+      ;;
+  esac
+
+  case "$arch_raw" in
+    x86_64)
+      arch='x64'
+      ;;
+    aarch64|arm64)
+      arch='arm64'
+      ;;
+    armv7l)
+      arch='armv7'
+      ;;
+    *)
+      fail "Unsupported sa-mise platform: ${os}-${arch_raw}"
+      ;;
+  esac
+
+  if [ "$os" = 'linux' ] && command -v ldd >/dev/null 2>&1; then
+    if [ "${MISE_INSTALL_MUSL:-}" = '1' ] || [ "${MISE_INSTALL_MUSL:-}" = 'true' ]; then
+      musl='-musl'
+    elif [ "$(uname -o 2>/dev/null || true)" = 'Android' ]; then
+      musl='-musl'
+    elif ldd /bin/ls 2>/dev/null | grep -q 'musl'; then
+      musl='-musl'
+    fi
+  fi
+
+  printf '%s-%s%s\n' "$os" "$arch" "$musl"
+}
+
+validate_supported_platform() {
+  case "$1" in
+    linux-x64|linux-x64-musl|linux-arm64|linux-arm64-musl|linux-armv7|linux-armv7-musl|macos-x64|macos-arm64)
+      return 0
+      ;;
+    *)
+      fail "Unsupported sa-mise platform: $1"
       ;;
   esac
 }
@@ -45,17 +90,14 @@ resolve_plugin_context() {
 
   resolved_context="$(
     "$CONTEXT_HELPER" resolve \
-      --plugin-root "$PLUGIN_ROOT" \
-      --plugin-name sa-mise \
-      --format shell 2>&1
+      --plugin-root "$PLUGIN_ROOT" 2>&1
   )" || fail "$resolved_context"
   eval "$resolved_context"
 
   PLUGIN_DATA_DIR="$COWORK_PLUGIN_DATA"
   PLUGIN_DATA_SOURCE="$COWORK_PLUGIN_DATA_SOURCE"
-  PLUGIN_STATE_FILE="$COWORK_PLUGIN_STATE_FILE"
 
-  CACHE_ROOT="${PLUGIN_DATA_DIR}/linux-arm64"
+  CACHE_ROOT="${PLUGIN_DATA_DIR}/${PLATFORM}"
   CACHE_BIN_PATH="${CACHE_ROOT}/bin/mise"
   INSTALL_MARKER="${CACHE_ROOT}/install-status.txt"
   MISE_HOME_DIR="${CACHE_ROOT}/home"
@@ -76,7 +118,7 @@ cache_ready() {
 }
 
 require_commands() {
-  for required_command in curl sh uname date rm mkdir cat mv chmod mktemp dirname cksum; do
+  for required_command in curl sh uname date rm mkdir mv chmod mktemp dirname; do
     command -v "$required_command" >/dev/null 2>&1 || fail "$required_command is required for sa-mise bootstrap."
   done
 }
@@ -90,11 +132,9 @@ write_install_marker() {
   timestamp="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
   {
     printf 'installed_at=%s\n' "$timestamp"
-    printf 'cache_root=%s\n' "$CACHE_ROOT"
     printf 'mise_path=%s\n' "$CACHE_BIN_PATH"
     printf 'installer=%s\n' "$INSTALL_SCRIPT_URL"
     printf 'plugin_data_source=%s\n' "$PLUGIN_DATA_SOURCE"
-    printf 'plugin_state_file=%s\n' "$PLUGIN_STATE_FILE"
   } > "$INSTALL_MARKER"
 }
 
@@ -126,10 +166,8 @@ install_latest_mise() {
 }
 
 ensure_mise_cache() {
-  platform="$(detect_platform)"
-  if [ "$platform" != "linux-arm64" ]; then
-    fail "Unsupported sa-mise platform: $platform (expected linux-arm64)"
-  fi
+  PLATFORM="$(detect_platform)"
+  validate_supported_platform "$PLATFORM"
 
   resolve_plugin_context
   ensure_cache_root
