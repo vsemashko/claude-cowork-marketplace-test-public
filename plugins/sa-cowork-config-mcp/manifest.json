@@ -1,0 +1,66 @@
+{
+  "manifest_version": "0.3",
+  "name": "sa-cowork-config-mcp",
+  "display_name": "Cowork Config MCP",
+  "version": "1.0.0",
+  "description": "MCP server for testing user_config injection and direct hook-side MCP access",
+  "author": {
+    "name": "Vladimir Semashko",
+    "url": "https://github.com/vsemashko"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/vsemashko/claude-cowork-marketplace-test-public"
+  },
+  "server": {
+    "type": "node",
+    "entry_point": "server/build/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": ["${__dirname}/server/build/index.js"],
+      "env": {
+        "DD_API_KEY": "${user_config.dd_api_key}",
+        "DD_SITE": "${user_config.dd_site}",
+        "GITLAB_TOKEN": "${user_config.gitlab_token}"
+      }
+    }
+  },
+  "tools": [
+    {
+      "name": "check_config",
+      "description": "Report which configured values are present in sanitized key=value form"
+    }
+  ],
+  "user_config": {
+    "dd_api_key": {
+      "type": "string",
+      "title": "Datadog API Key",
+      "description": "Datadog API key for MCP config handling tests",
+      "required": false,
+      "sensitive": true
+    },
+    "dd_site": {
+      "type": "string",
+      "title": "Datadog Site",
+      "description": "Datadog site (for example datadoghq.com)",
+      "required": false,
+      "default": "datadoghq.com"
+    },
+    "gitlab_token": {
+      "type": "string",
+      "title": "GitLab Token",
+      "description": "GitLab personal access token for MCP config handling tests",
+      "required": false,
+      "sensitive": true
+    }
+  },
+  "keywords": ["cowork", "test", "config", "mcpb", "datadog", "gitlab"],
+  "license": "MIT",
+  "compatibility": {
+    "claude_desktop": ">=0.11.0",
+    "platforms": ["darwin", "win32", "linux"],
+    "runtimes": {
+      "node": ">=18.0.0"
+    }
+  }
+}

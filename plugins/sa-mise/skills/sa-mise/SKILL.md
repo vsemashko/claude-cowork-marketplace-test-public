@@ -41,4 +41,6 @@ ${CLAUDE_PLUGIN_ROOT}/bin/mise <args>
   `${CLAUDE_PLUGIN_DATA}/logs/session-start.log`
 - Check shared resolver diagnostics here:
   `${CLAUDE_PLUGIN_DATA}/state/cowork-plugin-context.env`
+- If the `sa-cowork-config-mcp` MCPB is installed, the SessionStart hook also
+  appends sanitized MCP-derived config fields to the same log.
 - Later runs reuse the cached binary until that cache directory is removed.

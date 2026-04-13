@@ -182,6 +182,7 @@ ensure_mise_cache() {
 
 ensure_mise_cache
 exec env \
+  SA_MISE_ORIGINAL_HOME="${HOME:-}" \
   HOME="$MISE_HOME_DIR" \
   MISE_DATA_DIR="$MISE_DATA_DIR_PATH" \
   MISE_CACHE_DIR="$MISE_CACHE_DIR_PATH" \

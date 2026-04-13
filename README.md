@@ -1,8 +1,10 @@
 # sa-mise Marketplace
 
-This repository is a minimal, static Claude marketplace bundle for one job: ship
-a plugin-local `mise` shim that bootstraps the latest `mise` binary into shared
-Cowork plugin data.
+This repository is a minimal Claude/Cowork test bundle with two surfaces:
+
+- `sa-mise`, a marketplace plugin that ships a transparent `mise` shim
+- `sa-cowork-config-mcp`, a separately packaged MCPB extension for config
+  handling tests
 
 The plugin intentionally does not package `stash`, `stashaway-agents`, a public
 `deno` shim, or any StashAway-private download logic.
@@ -11,12 +13,36 @@ The plugin intentionally does not package `stash`, `stashaway-agents`, a public
 
 - `sa-mise`
 
+## Included MCPB Bundle
+
+- `sa-cowork-config-mcp`
+
 ## Install
 
 Add this repo as a marketplace source in Claude:
 
 - Repository: `vsemashko/claude-cowork-marketplace-test-public`
 - Marketplace plugin: `sa-mise`
+
+The config MCPB is packaged separately and is not installed through the
+marketplace manifest.
+
+## Install The Config MCPB
+
+From the repo root:
+
+```bash
+npm --prefix plugins/sa-cowork-config-mcp/server install
+npm --prefix plugins/sa-cowork-config-mcp/server run build
+npx -y @anthropic-ai/mcpb validate plugins/sa-cowork-config-mcp/manifest.json
+npx -y @anthropic-ai/mcpb pack plugins/sa-cowork-config-mcp dist/sa-cowork-config-mcp.mcpb
+```
+
+Then install `dist/sa-cowork-config-mcp.mcpb` in Claude Desktop and configure:
+
+- `dd_api_key`
+- `dd_site`
+- `gitlab_token`
 
 ## What The Plugin Does
 
@@ -35,6 +61,8 @@ Add this repo as a marketplace source in Claude:
 - includes a SessionStart hook sample that proves
   `#!/usr/bin/env -S mise exec deno@latest -- deno run` works for registered
   hooks too
+- queries the installed `sa-cowork-config-mcp` MCP server directly from the
+  SessionStart hook when that MCPB is installed
 
 ## Skill
 
@@ -62,11 +90,13 @@ ${CLAUDE_PLUGIN_ROOT}/bin/mise --version
 ## Manual Acceptance
 
 1. Install the marketplace from this GitHub repo.
-2. Open a Claude plugin shell on a platform supported by the official `mise`
+2. Install and configure the `sa-cowork-config-mcp` MCPB if you want to verify
+   direct hook-side MCP access.
+3. Open a Claude plugin shell on a platform supported by the official `mise`
    installer.
-3. Run `mise --version`. If `mise` is not yet on `PATH`, use
+4. Run `mise --version`. If `mise` is not yet on `PATH`, use
    `${CLAUDE_PLUGIN_ROOT}/bin/mise --version`.
-4. Verify the command succeeds and creates:
+5. Verify the command succeeds and creates:
    - `${CLAUDE_PLUGIN_DATA}/${platform}/bin/mise`
    - `${CLAUDE_PLUGIN_DATA}/${platform}/install-status.txt`
    - `${CLAUDE_PLUGIN_DATA}/logs/session-start.log`
@@ -86,10 +116,22 @@ The log file is intentionally minimal. It records:
 - `sample_name`
 - `mise_version`
 - `deno_version`
+- `mcp_config_source`
+- `mcp_status`
+- `mcp_dd_api_key_present`
+- `mcp_dd_api_key_length`
+- `mcp_dd_site`
+- `mcp_gitlab_token_present`
+- `mcp_gitlab_token_length`
 
 The shared resolver state is also captured in:
 
 - `${CLAUDE_PLUGIN_DATA}/state/cowork-plugin-context.env`
+
+When the config MCPB is installed, the SessionStart hook reads Claude's native
+MCP config from `${HOME}/.claude.json`, launches the configured stdio MCP
+server, calls `check_config`, and appends the sanitized result to the same hook
+log.
 
 ## Local Validation
 
