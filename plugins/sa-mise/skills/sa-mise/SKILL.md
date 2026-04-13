@@ -26,7 +26,10 @@ For a basic availability check:
 
 - The shim resolves plugin root from its own path.
 - On first use it installs the latest official `mise` binary into:
-  `${CLAUDE_PLUGIN_DATA}/sa-mise/linux-arm64/bin/mise`
-- If `CLAUDE_PLUGIN_DATA` is missing at runtime, the shim falls back to a
-  SessionStart hook snapshot for this plugin root.
+  `${resolved_plugin_data}/sa-mise/linux-arm64/bin/mise`
+- Plugin data is resolved in this order: `SA_MISE_PLUGIN_DATA`, live
+  `CLAUDE_PLUGIN_DATA`, shared Cowork session state, then deterministic
+  session-layout discovery.
+- The SessionStart hook refreshes shared resolver diagnostics, but direct shim
+  execution should work without manually passing `CLAUDE_PLUGIN_DATA`.
 - Later runs reuse the cached binary until that cache directory is removed.

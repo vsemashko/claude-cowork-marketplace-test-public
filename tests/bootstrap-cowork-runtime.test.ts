@@ -46,6 +46,7 @@ async function createPluginFixture(
     'bin/mise',
     'hooks/hooks.json',
     'hooks/session-start.sh',
+    'scripts/cowork-plugin-context.sh',
     'scripts/examples/hook-sample.ts',
     'scripts/runtime-shim.sh',
     'skills/sa-mise/SKILL.md',
@@ -145,7 +146,7 @@ function createEnv(
   mockBinDir: string,
 ): Record<string, string> {
   return {
-    CLAUDE_PLUGIN_DATA: join(baseDir, 'plugin-data'),
+    CLAUDE_PLUGIN_DATA: join(baseDir, 'plugin-data-live'),
     DENO_REAL_BIN: Deno.execPath(),
     HOME: join(baseDir, 'home'),
     PATH: `${mockBinDir}:${Deno.env.get('PATH') ?? ''}`,
@@ -153,6 +154,40 @@ function createEnv(
     SA_TEST_DOWNLOAD_LOG: downloadLogPath,
     TMPDIR: join(baseDir, 'tmp'),
   }
+}
+
+function expectedDerivedPluginData(pluginRoot: string): string {
+  const remotePluginsMarker = '/.remote-plugins/'
+  const coworkCacheMarker = '/cowork_plugins/'
+
+  if (pluginRoot.includes(remotePluginsMarker)) {
+    return join(
+      pluginRoot.slice(0, pluginRoot.indexOf(remotePluginsMarker)),
+      '.claude',
+      'plugins',
+      'data',
+    )
+  }
+
+  if (pluginRoot.includes(coworkCacheMarker)) {
+    return join(
+      pluginRoot.slice(0, pluginRoot.indexOf(coworkCacheMarker)),
+      '.claude',
+      'plugins',
+      'data',
+    )
+  }
+
+  throw new Error(`Unsupported plugin layout: ${pluginRoot}`)
+}
+
+function expectedStateFile(pluginRoot: string): string {
+  return join(
+    dirname(expectedDerivedPluginData(pluginRoot)),
+    'state',
+    'cowork-plugin-context',
+    'sa-mise.env',
+  )
 }
 
 async function runCommand(
@@ -168,13 +203,14 @@ async function runCommand(
   }).output()
 }
 
-Deno.test('sa-mise installs latest mise on direct execution without CLAUDE_PLUGIN_ROOT', async () => {
+Deno.test('sa-mise prefers live CLAUDE_PLUGIN_DATA and records shared resolver state', async () => {
   const baseDir = await Deno.makeTempDir()
 
   try {
     const { pluginRoot } = await createPluginFixture(baseDir, 'session')
     const { downloadLogPath, mockBinDir } = await createMockTooling(baseDir)
     const env = createEnv(baseDir, pluginRoot, downloadLogPath, mockBinDir)
+    const stateFile = expectedStateFile(pluginRoot)
 
     const result = await runCommand(join(pluginRoot, 'bin', 'mise'), [
       '--version',
@@ -189,6 +225,11 @@ Deno.test('sa-mise installs latest mise on direct execution without CLAUDE_PLUGI
       ),
       true,
     )
+    assertEquals(await exists(stateFile), true)
+    assertStringIncludes(
+      await Deno.readTextFile(stateFile),
+      'COWORK_PLUGIN_DATA_SOURCE=live-env',
+    )
 
     const downloadLog = await Deno.readTextFile(downloadLogPath)
     assertEquals(downloadLog.trim().split('\n').length, 1)
@@ -198,13 +239,15 @@ Deno.test('sa-mise installs latest mise on direct execution without CLAUDE_PLUGI
   }
 })
 
-Deno.test('sa-mise works from a guest-shell style plugin path too', async () => {
+Deno.test('sa-mise resolves plugin data from session layout without explicit env', async () => {
   const baseDir = await Deno.makeTempDir()
 
   try {
-    const { pluginRoot } = await createPluginFixture(baseDir, 'guest')
+    const { pluginRoot } = await createPluginFixture(baseDir, 'session')
     const { downloadLogPath, mockBinDir } = await createMockTooling(baseDir)
     const env = createEnv(baseDir, pluginRoot, downloadLogPath, mockBinDir)
+    delete env.CLAUDE_PLUGIN_DATA
+    const derivedPluginData = expectedDerivedPluginData(pluginRoot)
 
     const result = await runCommand(join(pluginRoot, 'bin', 'mise'), [
       '--version',
@@ -213,6 +256,45 @@ Deno.test('sa-mise works from a guest-shell style plugin path too', async () => 
 
     assertEquals(result.success, true)
     assertStringIncludes(stdout, 'mise latest test')
+    assertEquals(
+      await exists(
+        join(derivedPluginData, 'sa-mise', 'linux-arm64', 'bin', 'mise'),
+      ),
+      true,
+    )
+  } finally {
+    await Deno.remove(baseDir, { recursive: true })
+  }
+})
+
+Deno.test('sa-mise works from a guest-shell style plugin path without explicit env too', async () => {
+  const baseDir = await Deno.makeTempDir()
+
+  try {
+    const { pluginRoot } = await createPluginFixture(baseDir, 'guest')
+    const { downloadLogPath, mockBinDir } = await createMockTooling(baseDir)
+    const env = createEnv(baseDir, pluginRoot, downloadLogPath, mockBinDir)
+    delete env.CLAUDE_PLUGIN_DATA
+
+    const result = await runCommand(join(pluginRoot, 'bin', 'mise'), [
+      '--version',
+    ], env)
+    const stdout = new TextDecoder().decode(result.stdout)
+
+    assertEquals(result.success, true)
+    assertStringIncludes(stdout, 'mise latest test')
+    assertEquals(
+      await exists(
+        join(
+          expectedDerivedPluginData(pluginRoot),
+          'sa-mise',
+          'linux-arm64',
+          'bin',
+          'mise',
+        ),
+      ),
+      true,
+    )
   } finally {
     await Deno.remove(baseDir, { recursive: true })
   }
@@ -243,13 +325,14 @@ Deno.test('sa-mise reuses the cached binary on warm start', async () => {
   }
 })
 
-Deno.test('SessionStart hook snapshots plugin data and runs the shebang sample', async () => {
+Deno.test('SessionStart hook records shared resolver diagnostics and runs the shebang sample', async () => {
   const baseDir = await Deno.makeTempDir()
 
   try {
     const { pluginRoot } = await createPluginFixture(baseDir, 'session')
     const { downloadLogPath, mockBinDir } = await createMockTooling(baseDir)
     const env = createEnv(baseDir, pluginRoot, downloadLogPath, mockBinDir)
+    const stateFile = expectedStateFile(pluginRoot)
 
     const hookResult = await runCommand(
       join(pluginRoot, 'hooks', 'session-start.sh'),
@@ -267,28 +350,29 @@ Deno.test('SessionStart hook snapshots plugin data and runs the shebang sample',
     assertEquals(hookResult.success, true)
     assertStringIncludes(statusContents, 'status=success')
     assertStringIncludes(statusContents, 'sa-mise hook sample ok')
+    assertStringIncludes(statusContents, 'plugin_data_source=live-env')
     assertStringIncludes(statusContents, 'mise: mise latest test')
     assertStringIncludes(statusContents, 'deno:')
-    assertEquals(await exists(join(env.TMPDIR, 'sa-mise')), true)
+    assertEquals(await exists(stateFile), true)
   } finally {
     await Deno.remove(baseDir, { recursive: true })
   }
 })
 
-Deno.test('sa-mise falls back to the hook snapshot when CLAUDE_PLUGIN_DATA is missing', async () => {
+Deno.test('sa-mise falls back to shared session state before layout discovery', async () => {
   const baseDir = await Deno.makeTempDir()
 
   try {
     const { pluginRoot } = await createPluginFixture(baseDir, 'session')
     const { downloadLogPath, mockBinDir } = await createMockTooling(baseDir)
     const env = createEnv(baseDir, pluginRoot, downloadLogPath, mockBinDir)
+    const stateFile = expectedStateFile(pluginRoot)
+    const derivedPluginData = expectedDerivedPluginData(pluginRoot)
 
-    const hookResult = await runCommand(
-      join(pluginRoot, 'hooks', 'session-start.sh'),
-      [],
-      env,
-    )
-    assertEquals(hookResult.success, true)
+    const warmupResult = await runCommand(join(pluginRoot, 'bin', 'mise'), [
+      '--version',
+    ], env)
+    assertEquals(warmupResult.success, true)
 
     const fallbackEnv = {
       DENO_REAL_BIN: env.DENO_REAL_BIN,
@@ -306,19 +390,38 @@ Deno.test('sa-mise falls back to the hook snapshot when CLAUDE_PLUGIN_DATA is mi
 
     assertEquals(result.success, true)
     assertStringIncludes(stdout, 'mise latest test')
+    assertEquals(
+      await exists(
+        join(env.CLAUDE_PLUGIN_DATA, 'sa-mise', 'linux-arm64', 'bin', 'mise'),
+      ),
+      true,
+    )
+    assertEquals(
+      await exists(
+        join(derivedPluginData, 'sa-mise', 'linux-arm64', 'bin', 'mise'),
+      ),
+      false,
+    )
+    assertStringIncludes(
+      await Deno.readTextFile(stateFile),
+      'COWORK_PLUGIN_DATA_SOURCE=session-state',
+    )
   } finally {
     await Deno.remove(baseDir, { recursive: true })
   }
 })
 
-Deno.test('sa-mise fails clearly when neither live env nor snapshot provides plugin data', async () => {
+Deno.test('sa-mise fails clearly when plugin data cannot be resolved from any source', async () => {
   const baseDir = await Deno.makeTempDir()
 
   try {
-    const { pluginRoot } = await createPluginFixture(baseDir, 'session')
+    const { pluginRoot } = await createPluginFixture(baseDir, 'guest')
+    const unknownPluginRoot = join(baseDir, 'plain-layout', 'plugin', 'sa-mise')
     const { downloadLogPath, mockBinDir } = await createMockTooling(baseDir)
+    await Deno.mkdir(dirname(unknownPluginRoot), { recursive: true })
+    await Deno.rename(pluginRoot, unknownPluginRoot)
 
-    const result = await runCommand(join(pluginRoot, 'bin', 'mise'), [
+    const result = await runCommand(join(unknownPluginRoot, 'bin', 'mise'), [
       '--version',
     ], {
       DENO_REAL_BIN: Deno.execPath(),
@@ -331,41 +434,21 @@ Deno.test('sa-mise fails clearly when neither live env nor snapshot provides plu
     const stderr = new TextDecoder().decode(result.stderr)
 
     assertEquals(result.success, false)
-    assertStringIncludes(stderr, 'Start a fresh Claude session first')
+    assertStringIncludes(stderr, 'Unable to resolve Cowork plugin data')
+    assertStringIncludes(stderr, 'layout-discovery')
   } finally {
     await Deno.remove(baseDir, { recursive: true })
   }
 })
 
-Deno.test('sa-mise ignores a mismatched snapshot file', async () => {
+Deno.test('sa-mise accepts SA_MISE_PLUGIN_DATA as the explicit override', async () => {
   const baseDir = await Deno.makeTempDir()
 
   try {
     const { pluginRoot } = await createPluginFixture(baseDir, 'session')
     const { downloadLogPath, mockBinDir } = await createMockTooling(baseDir)
-    const tmpDir = join(baseDir, 'tmp')
-    const snapshotDir = join(tmpDir, 'sa-mise')
-
-    await Deno.mkdir(snapshotDir, { recursive: true })
-
-    const checksumOutput = await new Deno.Command('sh', {
-      args: [
-        '-c',
-        `printf '%s' "$1" | cksum | awk '{print $1}'`,
-        'sh',
-        pluginRoot,
-      ],
-      stdout: 'piped',
-    }).output()
-    const snapshotId = new TextDecoder().decode(checksumOutput.stdout).trim()
-
-    await Deno.writeTextFile(
-      join(snapshotDir, `${snapshotId}.env`),
-      [
-        'CLAUDE_PLUGIN_ROOT=/wrong/plugin/root',
-        `CLAUDE_PLUGIN_DATA=${join(baseDir, 'plugin-data')}`,
-      ].join('\n'),
-    )
+    const overridePluginData = join(baseDir, 'plugin-data-override')
+    const stateFile = expectedStateFile(pluginRoot)
 
     const result = await runCommand(join(pluginRoot, 'bin', 'mise'), [
       '--version',
@@ -373,14 +456,25 @@ Deno.test('sa-mise ignores a mismatched snapshot file', async () => {
       DENO_REAL_BIN: Deno.execPath(),
       HOME: join(baseDir, 'home'),
       PATH: `${mockBinDir}:${Deno.env.get('PATH') ?? ''}`,
+      SA_MISE_PLUGIN_DATA: overridePluginData,
       SA_MISE_FORCE_PLATFORM: 'linux-arm64',
       SA_TEST_DOWNLOAD_LOG: downloadLogPath,
-      TMPDIR: tmpDir,
+      TMPDIR: join(baseDir, 'tmp'),
     })
-    const stderr = new TextDecoder().decode(result.stderr)
+    const stdout = new TextDecoder().decode(result.stdout)
 
-    assertEquals(result.success, false)
-    assertStringIncludes(stderr, 'Start a fresh Claude session first')
+    assertEquals(result.success, true)
+    assertStringIncludes(stdout, 'mise latest test')
+    assertEquals(
+      await exists(
+        join(overridePluginData, 'sa-mise', 'linux-arm64', 'bin', 'mise'),
+      ),
+      true,
+    )
+    assertStringIncludes(
+      await Deno.readTextFile(stateFile),
+      'COWORK_PLUGIN_DATA_SOURCE=explicit-override',
+    )
   } finally {
     await Deno.remove(baseDir, { recursive: true })
   }

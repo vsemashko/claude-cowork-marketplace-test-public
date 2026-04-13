@@ -4,6 +4,7 @@ set -eu
 
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 PLUGIN_ROOT="$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)"
+CONTEXT_HELPER="${PLUGIN_ROOT}/scripts/cowork-plugin-context.sh"
 TMP_DIR=''
 INSTALL_SCRIPT_URL="${SA_MISE_INSTALL_SCRIPT_URL:-https://mise.jdx.dev/install.sh}"
 
@@ -39,55 +40,21 @@ detect_platform() {
   esac
 }
 
-snapshot_key() {
-  set -- $(printf '%s' "$PLUGIN_ROOT" | cksum)
-  printf '%s\n' "$1"
-}
-
-snapshot_dir() {
-  printf '%s\n' "${TMPDIR:-/tmp}/sa-mise"
-}
-
-snapshot_path() {
-  printf '%s/%s.env\n' "$(snapshot_dir)" "$(snapshot_key)"
-}
-
-load_snapshot_plugin_data() {
-  snapshot_file="$(snapshot_path)"
-  [ -f "$snapshot_file" ] || return 1
-
-  snapshot_root=''
-  snapshot_data=''
-
-  while IFS='=' read -r key value; do
-    case "$key" in
-      CLAUDE_PLUGIN_ROOT)
-        snapshot_root="$value"
-        ;;
-      CLAUDE_PLUGIN_DATA)
-        snapshot_data="$value"
-        ;;
-    esac
-  done < "$snapshot_file"
-
-  [ -n "$snapshot_root" ] || return 1
-  [ -n "$snapshot_data" ] || return 1
-  [ "$snapshot_root" = "$PLUGIN_ROOT" ] || return 1
-
-  PLUGIN_DATA_DIR="$snapshot_data"
-  return 0
-}
-
 resolve_plugin_context() {
-  if [ -n "${CLAUDE_PLUGIN_ROOT:-}" ] && [ "$CLAUDE_PLUGIN_ROOT" != "$PLUGIN_ROOT" ]; then
-    :
-  fi
+  [ -x "$CONTEXT_HELPER" ] || fail "Missing Cowork context helper: $CONTEXT_HELPER"
 
-  if [ -n "${CLAUDE_PLUGIN_DATA:-}" ]; then
-    PLUGIN_DATA_DIR="$CLAUDE_PLUGIN_DATA"
-  elif ! load_snapshot_plugin_data; then
-    fail 'CLAUDE_PLUGIN_DATA is unavailable for sa-mise. Start a fresh Claude session first so the hook can snapshot plugin env.'
-  fi
+  resolved_context="$(
+    "$CONTEXT_HELPER" resolve \
+      --plugin-root "$PLUGIN_ROOT" \
+      --plugin-name sa-mise \
+      --override-env-var SA_MISE_PLUGIN_DATA \
+      --format shell 2>&1
+  )" || fail "$resolved_context"
+  eval "$resolved_context"
+
+  PLUGIN_DATA_DIR="$COWORK_PLUGIN_DATA"
+  PLUGIN_DATA_SOURCE="$COWORK_PLUGIN_DATA_SOURCE"
+  PLUGIN_STATE_FILE="$COWORK_PLUGIN_STATE_FILE"
 
   CACHE_ROOT="${PLUGIN_DATA_DIR}/sa-mise/linux-arm64"
   CACHE_BIN_PATH="${CACHE_ROOT}/bin/mise"
@@ -127,6 +94,8 @@ write_install_marker() {
     printf 'cache_root=%s\n' "$CACHE_ROOT"
     printf 'mise_path=%s\n' "$CACHE_BIN_PATH"
     printf 'installer=%s\n' "$INSTALL_SCRIPT_URL"
+    printf 'plugin_data_source=%s\n' "$PLUGIN_DATA_SOURCE"
+    printf 'plugin_state_file=%s\n' "$PLUGIN_STATE_FILE"
   } > "$INSTALL_MARKER"
 }
 

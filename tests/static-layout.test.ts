@@ -31,6 +31,10 @@ Deno.test('sa-mise plugin ships the expected minimal assets', async () => {
     true,
   )
   assertEquals(
+    await exists(join(pluginRoot, 'scripts', 'cowork-plugin-context.sh')),
+    true,
+  )
+  assertEquals(
     await exists(join(pluginRoot, 'scripts', 'examples', 'hook-sample.ts')),
     true,
   )

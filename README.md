@@ -1,8 +1,8 @@
 # sa-mise Marketplace
 
 This repository is a minimal, static Claude marketplace bundle for one job: ship
-a plugin-local `mise` shim that bootstraps the latest `mise` binary into
-`CLAUDE_PLUGIN_DATA`.
+a plugin-local `mise` shim that bootstraps the latest `mise` binary into shared
+Cowork plugin data.
 
 The plugin intentionally does not package `stash`, `stashaway-agents`, a public
 `deno` shim, or any StashAway-private download logic.
@@ -22,10 +22,15 @@ Add this repo as a marketplace source in Claude:
 
 - ships a committed shim at `${CLAUDE_PLUGIN_ROOT}/bin/mise`
 - resolves plugin root from the shim path itself
-- prefers live `CLAUDE_PLUGIN_DATA` and falls back to a SessionStart hook
-  snapshot
+- resolves plugin data in this order:
+  - `SA_MISE_PLUGIN_DATA`
+  - live `CLAUDE_PLUGIN_DATA`
+  - shared Cowork session state
+  - deterministic session-layout discovery
+- captures shared resolver diagnostics in
+  `.claude/plugins/state/cowork-plugin-context/sa-mise.env`
 - installs the latest official `mise` binary on first use
-- caches the binary under `${CLAUDE_PLUGIN_DATA}/sa-mise/linux-arm64/bin/mise`
+- caches the binary under `${resolved_plugin_data}/sa-mise/linux-arm64/bin/mise`
 - reuses the cached binary until the plugin cache is deleted
 - never writes runtime files into `${HOME}`
 - includes an internal SessionStart hook sample that proves
@@ -53,9 +58,10 @@ ${CLAUDE_PLUGIN_ROOT}/bin/mise <args>
 2. Open a Claude plugin shell on `linux-arm64`.
 3. Run `/absolute/path/to/bin/mise --version`.
 4. Verify the command succeeds and creates:
-   - `${CLAUDE_PLUGIN_DATA}/sa-mise/linux-arm64/bin/mise`
-   - `${CLAUDE_PLUGIN_DATA}/sa-mise/linux-arm64/install-status.txt`
-   - `${CLAUDE_PLUGIN_DATA}/sa-mise/linux-arm64/hook-sample-status.txt`
+   - `${resolved_plugin_data}/sa-mise/linux-arm64/bin/mise`
+   - `${resolved_plugin_data}/sa-mise/linux-arm64/install-status.txt`
+   - `${resolved_plugin_data}/sa-mise/linux-arm64/hook-sample-status.txt`
+   - `${session_mount}/.claude/plugins/state/cowork-plugin-context/sa-mise.env`
 
 ## Local Validation
 
