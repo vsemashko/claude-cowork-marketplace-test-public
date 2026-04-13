@@ -1,5 +1,10 @@
 const SERVER_NAME = 'sa-cowork-config-mcp'
 const PROTOCOL_VERSION = '2024-11-05'
+const EXTENSION_HINTS = [
+  'sa-cowork-config-mcp',
+  'Cowork Config MCP',
+  'server/build/index.js',
+]
 
 type StdioServerConfig = {
   command?: string
@@ -20,19 +25,38 @@ type JsonRpcMessage = {
   error?: { code?: number; message?: string }
 }
 
-function emit(lines: string[]): void {
+type DiscoveryState = {
+  home: string
+  claudeConfigPath: string
+  claudeConfigExists: boolean
+  claudeConfigHasMcpServers: boolean
+  claudeConfigServerKeys: string[]
+  claudeConfigServerMatched: boolean
+  extensionInstallationsPath?: string
+  extensionInstallationsExists: boolean
+  extensionInstallationsMatched: boolean
+  extensionManifestPath?: string
+  extensionManifestExists: boolean
+  extensionSettingsPath?: string
+  extensionSettingsExists: boolean
+  processMatchCount: number
+  processMatches: string[]
+}
+
+function emit(lines: string[], discovery: DiscoveryState): void {
   console.log('mcp_config_source=direct-mcp')
+  emitDiscovery(discovery)
   for (const line of lines) {
     console.log(line)
   }
 }
 
-function emitMissing(): void {
-  emit(['mcp_status=missing'])
+function emitMissing(discovery: DiscoveryState): void {
+  emit(['mcp_status=missing'], discovery)
 }
 
-function emitError(reason: string): void {
-  emit([`mcp_status=error`, `mcp_error=${reason}`])
+function emitError(reason: string, discovery: DiscoveryState): void {
+  emit([`mcp_status=error`, `mcp_error=${reason}`], discovery)
 }
 
 function sanitizeError(reason: string): string {
@@ -40,17 +64,247 @@ function sanitizeError(reason: string): string {
     'unknown_error'
 }
 
-async function readClaudeConfig(): Promise<ClaudeMcpConfig | null> {
-  const home = Deno.env.get('SA_MISE_ORIGINAL_HOME') ?? Deno.env.get('HOME')
-  if (!home) return null
-
-  const configPath = `${home}/.claude.json`
+async function readClaudeConfig(
+  configPath: string,
+): Promise<ClaudeMcpConfig | null> {
   try {
     const text = await Deno.readTextFile(configPath)
     return JSON.parse(text) as ClaudeMcpConfig
   } catch {
     return null
   }
+}
+
+function resolveHome(): string {
+  return Deno.env.get('SA_MISE_ORIGINAL_HOME') ?? Deno.env.get('HOME') ?? ''
+}
+
+async function pathExists(path: string): Promise<boolean> {
+  try {
+    await Deno.stat(path)
+    return true
+  } catch {
+    return false
+  }
+}
+
+function sanitizeField(value: string): string {
+  return value.replace(/[^\w./:@-]+/g, '_').replace(/^_+|_+$/g, '') || 'none'
+}
+
+async function findExtensionArtifacts(
+  home: string,
+): Promise<Partial<DiscoveryState>> {
+  const candidates = [
+    `${home}/Library/Application Support/Claude`,
+    `${home}/.config/Claude`,
+    `${home}/.local/share/Claude`,
+    `${home}/.claude`,
+  ]
+
+  let extensionInstallationsPath: string | undefined
+  let extensionInstallationsExists = false
+  let extensionInstallationsMatched = false
+  let extensionManifestPath: string | undefined
+  let extensionManifestExists = false
+  let extensionSettingsPath: string | undefined
+  let extensionSettingsExists = false
+
+  for (const root of candidates) {
+    const installationsCandidate = `${root}/extensions-installations.json`
+    if (
+      !extensionInstallationsPath && await pathExists(installationsCandidate)
+    ) {
+      extensionInstallationsPath = installationsCandidate
+      extensionInstallationsExists = true
+      try {
+        const text = await Deno.readTextFile(installationsCandidate)
+        extensionInstallationsMatched = EXTENSION_HINTS.some((hint) =>
+          text.includes(hint)
+        )
+      } catch {
+        // ignore
+      }
+    }
+
+    const extensionsDir = `${root}/Claude Extensions`
+    if (!extensionManifestPath && await pathExists(extensionsDir)) {
+      for await (const entry of Deno.readDir(extensionsDir)) {
+        if (!entry.isDirectory) continue
+        if (
+          !entry.name.toLowerCase().includes('config') &&
+          !entry.name.toLowerCase().includes('cowork') &&
+          !entry.name.toLowerCase().includes('mcp')
+        ) {
+          continue
+        }
+        const manifestCandidate = `${extensionsDir}/${entry.name}/manifest.json`
+        if (await pathExists(manifestCandidate)) {
+          extensionManifestPath = manifestCandidate
+          extensionManifestExists = true
+          break
+        }
+      }
+    }
+
+    const settingsDir = `${root}/Claude Extensions Settings`
+    if (!extensionSettingsPath && await pathExists(settingsDir)) {
+      for await (const entry of Deno.readDir(settingsDir)) {
+        if (!entry.isFile) continue
+        if (
+          !entry.name.toLowerCase().includes('config') &&
+          !entry.name.toLowerCase().includes('cowork') &&
+          !entry.name.toLowerCase().includes('mcp')
+        ) {
+          continue
+        }
+        extensionSettingsPath = `${settingsDir}/${entry.name}`
+        extensionSettingsExists = true
+        break
+      }
+    }
+  }
+
+  return {
+    extensionInstallationsPath,
+    extensionInstallationsExists,
+    extensionInstallationsMatched,
+    extensionManifestPath,
+    extensionManifestExists,
+    extensionSettingsPath,
+    extensionSettingsExists,
+  }
+}
+
+async function findRelevantProcesses(): Promise<
+  { count: number; matches: string[] }
+> {
+  try {
+    const result = await new Deno.Command('ps', {
+      args: ['-axo', 'pid=,command='],
+      stdout: 'piped',
+      stderr: 'null',
+    }).output()
+    const lines = new TextDecoder().decode(result.stdout).split('\n')
+    const matches = lines
+      .map((line) => line.trim())
+      .filter((line) => line.length > 0)
+      .filter((line) => EXTENSION_HINTS.some((hint) => line.includes(hint)))
+      .slice(0, 3)
+      .map((line) => sanitizeField(line))
+    return { count: matches.length, matches }
+  } catch {
+    return { count: 0, matches: [] }
+  }
+}
+
+async function gatherDiscoveryState(): Promise<{
+  discovery: DiscoveryState
+  config: ClaudeMcpConfig | null
+}> {
+  const home = resolveHome()
+  const claudeConfigPath = home ? `${home}/.claude.json` : ''
+  const claudeConfigExists = claudeConfigPath
+    ? await pathExists(claudeConfigPath)
+    : false
+  const config = claudeConfigExists
+    ? await readClaudeConfig(claudeConfigPath)
+    : null
+  const claudeConfigServerKeys = Object.keys(config?.mcpServers ?? {})
+  const processInfo = await findRelevantProcesses()
+  const extensionInfo = home ? await findExtensionArtifacts(home) : {}
+
+  const discovery: DiscoveryState = {
+    home,
+    claudeConfigPath,
+    claudeConfigExists,
+    claudeConfigHasMcpServers: claudeConfigServerKeys.length > 0,
+    claudeConfigServerKeys,
+    claudeConfigServerMatched: SERVER_NAME in (config?.mcpServers ?? {}),
+    extensionInstallationsPath: extensionInfo.extensionInstallationsPath,
+    extensionInstallationsExists: extensionInfo.extensionInstallationsExists ??
+      false,
+    extensionInstallationsMatched:
+      extensionInfo.extensionInstallationsMatched ?? false,
+    extensionManifestPath: extensionInfo.extensionManifestPath,
+    extensionManifestExists: extensionInfo.extensionManifestExists ?? false,
+    extensionSettingsPath: extensionInfo.extensionSettingsPath,
+    extensionSettingsExists: extensionInfo.extensionSettingsExists ?? false,
+    processMatchCount: processInfo.count,
+    processMatches: processInfo.matches,
+  }
+
+  return { discovery, config }
+}
+
+function emitDiscovery(discovery: DiscoveryState): void {
+  console.log(`mcp_diag_home=${sanitizeField(discovery.home || 'missing')}`)
+  console.log(
+    `mcp_diag_claude_json_path=${
+      sanitizeField(discovery.claudeConfigPath || 'missing')
+    }`,
+  )
+  console.log(
+    `mcp_diag_claude_json_exists=${String(discovery.claudeConfigExists)}`,
+  )
+  console.log(
+    `mcp_diag_claude_json_has_mcp_servers=${
+      String(discovery.claudeConfigHasMcpServers)
+    }`,
+  )
+  console.log(
+    `mcp_diag_claude_json_server_keys=${
+      sanitizeField(discovery.claudeConfigServerKeys.join(',') || 'none')
+    }`,
+  )
+  console.log(
+    `mcp_diag_claude_json_server_match=${
+      String(discovery.claudeConfigServerMatched)
+    }`,
+  )
+  console.log(
+    `mcp_diag_extension_installations_path=${
+      sanitizeField(discovery.extensionInstallationsPath ?? 'missing')
+    }`,
+  )
+  console.log(
+    `mcp_diag_extension_installations_exists=${
+      String(discovery.extensionInstallationsExists)
+    }`,
+  )
+  console.log(
+    `mcp_diag_extension_installations_match=${
+      String(discovery.extensionInstallationsMatched)
+    }`,
+  )
+  console.log(
+    `mcp_diag_extension_manifest_path=${
+      sanitizeField(discovery.extensionManifestPath ?? 'missing')
+    }`,
+  )
+  console.log(
+    `mcp_diag_extension_manifest_exists=${
+      String(discovery.extensionManifestExists)
+    }`,
+  )
+  console.log(
+    `mcp_diag_extension_settings_path=${
+      sanitizeField(discovery.extensionSettingsPath ?? 'missing')
+    }`,
+  )
+  console.log(
+    `mcp_diag_extension_settings_exists=${
+      String(discovery.extensionSettingsExists)
+    }`,
+  )
+  console.log(
+    `mcp_diag_process_match_count=${String(discovery.processMatchCount)}`,
+  )
+  console.log(
+    `mcp_diag_process_matches=${
+      sanitizeField(discovery.processMatches.join(',') || 'none')
+    }`,
+  )
 }
 
 function encodeMessage(message: Record<string, unknown>): Uint8Array {
@@ -189,20 +443,20 @@ function parseConfigLines(text: string): string[] {
 }
 
 async function main(): Promise<void> {
-  const config = await readClaudeConfig()
+  const { discovery, config } = await gatherDiscoveryState()
   const server = config?.mcpServers?.[SERVER_NAME]
   if (!server) {
-    emitMissing()
+    emitMissing(discovery)
     return
   }
 
   if (server.type && server.type !== 'stdio') {
-    emitError('unsupported_transport')
+    emitError('unsupported_transport', discovery)
     return
   }
 
   if (!server.command) {
-    emitError('invalid_server_config')
+    emitError('invalid_server_config', discovery)
     return
   }
 
@@ -223,6 +477,7 @@ async function main(): Promise<void> {
   } catch (error) {
     emitError(
       sanitizeError(error instanceof Error ? error.message : String(error)),
+      discovery,
     )
     return
   }
@@ -283,14 +538,14 @@ async function main(): Promise<void> {
       throw new Error('empty_tool_response')
     }
 
-    emit(['mcp_status=success', ...parseConfigLines(text)])
+    emit(['mcp_status=success', ...parseConfigLines(text)], discovery)
     writer.releaseLock()
   } catch (error) {
     const stderr = await stderrPromise
     const reason = stderr.trim() ? sanitizeError(stderr.trim()) : sanitizeError(
       error instanceof Error ? error.message : String(error),
     )
-    emitError(reason)
+    emitError(reason, discovery)
   } finally {
     try {
       process.kill('SIGTERM')

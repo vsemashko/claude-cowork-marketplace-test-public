@@ -124,6 +124,10 @@ The log file is intentionally minimal. It records:
 - `mcp_gitlab_token_present`
 - `mcp_gitlab_token_length`
 
+For temporary MCP diagnosis, the same log also includes `mcp_diag_*` fields that
+show which Claude config paths, extension artifacts, and matching process hints
+were visible from the hook runtime.
+
 The shared resolver state is also captured in:
 
 - `${CLAUDE_PLUGIN_DATA}/state/cowork-plugin-context.env`
