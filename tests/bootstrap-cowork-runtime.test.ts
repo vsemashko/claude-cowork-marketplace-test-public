@@ -3,8 +3,37 @@ import { exists } from '@std/fs'
 import { dirname, join } from '@std/path'
 
 const REPO_ROOT = Deno.cwd()
-const SOURCE_PLUGIN_ROOT = join(REPO_ROOT, 'plugins', 'sa-mise')
+const SOURCE_PLUGINS_ROOT = join(REPO_ROOT, 'plugins')
 const INSTALL_SCRIPT_URL = 'https://mise.jdx.dev/install.sh'
+const PLUGIN_FIXTURE_FILES: Record<string, string[]> = {
+  'sa-mise': [
+    '.claude-plugin/plugin.json',
+    'bin/mise',
+    'hooks/hooks.json',
+    'hooks/session-start.sh',
+    'scripts/cowork-plugin-context.sh',
+    'scripts/session-start-sample.ts',
+    'scripts/runtime-shim.sh',
+    'skills/sa-mise/SKILL.md',
+  ],
+  'sa-mise-forwarder': [
+    '.claude-plugin/plugin.json',
+    'bin/mise',
+    'hooks/hooks.json',
+    'hooks/session-start.sh',
+    'hooks/session-start.ts',
+    'scripts/cowork-plugin-context.sh',
+    'skills/sa-mise-forwarder/SKILL.md',
+  ],
+  'sa-mise-cross-plugin': [
+    '.claude-plugin/plugin.json',
+    'hooks/hooks.json',
+    'hooks/session-start.sh',
+    'hooks/session-start.ts',
+    'scripts/cowork-plugin-context.sh',
+    'skills/sa-mise-cross-plugin/SKILL.md',
+  ],
+}
 
 async function copyFileWithMode(src: string, dest: string): Promise<void> {
   await Deno.mkdir(dirname(dest), { recursive: true })
@@ -22,6 +51,7 @@ async function writeExecutable(path: string, content: string): Promise<void> {
 async function createPluginFixture(
   baseDir: string,
   layout: 'guest' | 'session',
+  pluginName: string,
 ): Promise<{ pluginRoot: string }> {
   const pluginRoot = layout === 'guest'
     ? join(
@@ -29,7 +59,7 @@ async function createPluginFixture(
       'cowork_plugins',
       'cache',
       'sa-mise-marketplace',
-      'sa-mise',
+      pluginName,
       '1.0.0',
     )
     : join(
@@ -38,28 +68,36 @@ async function createPluginFixture(
       'determined-kind-cerf',
       'mnt',
       '.remote-plugins',
-      'plugin_01K7jRZmCexuZubh6YKnKw2E',
+      `${pluginName}-plugin_01K7jRZmCexuZubh6YKnKw2E`,
     )
 
-  const filesToCopy = [
-    '.claude-plugin/plugin.json',
-    'bin/mise',
-    'hooks/hooks.json',
-    'hooks/session-start.sh',
-    'scripts/cowork-plugin-context.sh',
-    'scripts/session-start-sample.ts',
-    'scripts/runtime-shim.sh',
-    'skills/sa-mise/SKILL.md',
-  ]
-
-  for (const relativePath of filesToCopy) {
+  for (const relativePath of PLUGIN_FIXTURE_FILES[pluginName] ?? []) {
     await copyFileWithMode(
-      join(SOURCE_PLUGIN_ROOT, relativePath),
+      join(SOURCE_PLUGINS_ROOT, pluginName, relativePath),
       join(pluginRoot, relativePath),
     )
   }
 
   return { pluginRoot }
+}
+
+async function createPluginFixtures(
+  baseDir: string,
+  layout: 'guest' | 'session',
+  pluginNames: string[],
+): Promise<Record<string, string>> {
+  const fixtures: Record<string, string> = {}
+
+  for (const pluginName of pluginNames) {
+    const { pluginRoot } = await createPluginFixture(
+      baseDir,
+      layout,
+      pluginName,
+    )
+    fixtures[pluginName] = pluginRoot
+  }
+
+  return fixtures
 }
 
 async function createMockTooling(
@@ -149,7 +187,7 @@ function createEnv(
     CLAUDE_PLUGIN_DATA: expectedDerivedPluginData(pluginRoot),
     DENO_REAL_BIN: Deno.execPath(),
     HOME: join(baseDir, 'home'),
-    PATH: `${mockBinDir}:${Deno.env.get('PATH') ?? ''}`,
+    PATH: `${mockBinDir}:/usr/bin:/bin:/usr/sbin:/sbin`,
     SA_MISE_FORCE_PLATFORM: 'linux-arm64',
     SA_TEST_DOWNLOAD_LOG: downloadLogPath,
     TMPDIR: join(baseDir, 'tmp'),
@@ -213,7 +251,11 @@ Deno.test('sa-mise prefers live CLAUDE_PLUGIN_DATA and records shared resolver s
   const baseDir = await Deno.makeTempDir()
 
   try {
-    const { pluginRoot } = await createPluginFixture(baseDir, 'session')
+    const { pluginRoot } = await createPluginFixture(
+      baseDir,
+      'session',
+      'sa-mise',
+    )
     const { downloadLogPath, mockBinDir } = await createMockTooling(baseDir)
     const env = createEnv(baseDir, pluginRoot, downloadLogPath, mockBinDir)
     const stateFile = expectedStateFile(pluginRoot)
@@ -259,7 +301,11 @@ Deno.test('sa-mise resolves plugin data from session layout without explicit env
   const baseDir = await Deno.makeTempDir()
 
   try {
-    const { pluginRoot } = await createPluginFixture(baseDir, 'session')
+    const { pluginRoot } = await createPluginFixture(
+      baseDir,
+      'session',
+      'sa-mise',
+    )
     const { downloadLogPath, mockBinDir } = await createMockTooling(baseDir)
     const env = createEnv(baseDir, pluginRoot, downloadLogPath, mockBinDir)
     delete env.CLAUDE_PLUGIN_DATA
@@ -287,7 +333,11 @@ Deno.test('sa-mise works from a guest-shell style plugin path without explicit e
   const baseDir = await Deno.makeTempDir()
 
   try {
-    const { pluginRoot } = await createPluginFixture(baseDir, 'guest')
+    const { pluginRoot } = await createPluginFixture(
+      baseDir,
+      'guest',
+      'sa-mise',
+    )
     const { downloadLogPath, mockBinDir } = await createMockTooling(baseDir)
     const env = createEnv(baseDir, pluginRoot, downloadLogPath, mockBinDir)
     delete env.CLAUDE_PLUGIN_DATA
@@ -318,7 +368,11 @@ Deno.test('sa-mise reuses the cached binary on warm start', async () => {
   const baseDir = await Deno.makeTempDir()
 
   try {
-    const { pluginRoot } = await createPluginFixture(baseDir, 'session')
+    const { pluginRoot } = await createPluginFixture(
+      baseDir,
+      'session',
+      'sa-mise',
+    )
     const { downloadLogPath, mockBinDir } = await createMockTooling(baseDir)
     const env = createEnv(baseDir, pluginRoot, downloadLogPath, mockBinDir)
 
@@ -343,7 +397,11 @@ Deno.test('SessionStart hook records shared resolver diagnostics and runs the sh
   const baseDir = await Deno.makeTempDir()
 
   try {
-    const { pluginRoot } = await createPluginFixture(baseDir, 'session')
+    const { pluginRoot } = await createPluginFixture(
+      baseDir,
+      'session',
+      'sa-mise',
+    )
     const { downloadLogPath, mockBinDir } = await createMockTooling(baseDir)
     const env = createEnv(baseDir, pluginRoot, downloadLogPath, mockBinDir)
     const stateFile = expectedStateFile(pluginRoot)
@@ -377,7 +435,11 @@ Deno.test('sa-mise falls back to shared session state before layout discovery', 
   const baseDir = await Deno.makeTempDir()
 
   try {
-    const { pluginRoot } = await createPluginFixture(baseDir, 'session')
+    const { pluginRoot } = await createPluginFixture(
+      baseDir,
+      'session',
+      'sa-mise',
+    )
     const { downloadLogPath, mockBinDir } = await createMockTooling(baseDir)
     const env = createEnv(baseDir, pluginRoot, downloadLogPath, mockBinDir)
     const stateFile = expectedStateFile(pluginRoot)
@@ -422,7 +484,11 @@ Deno.test('sa-mise fails clearly when plugin data cannot be resolved from any so
   const baseDir = await Deno.makeTempDir()
 
   try {
-    const { pluginRoot } = await createPluginFixture(baseDir, 'guest')
+    const { pluginRoot } = await createPluginFixture(
+      baseDir,
+      'guest',
+      'sa-mise',
+    )
     const unknownPluginRoot = join(baseDir, 'plain-layout', 'plugin', 'sa-mise')
     const { downloadLogPath, mockBinDir } = await createMockTooling(baseDir)
     await Deno.mkdir(dirname(unknownPluginRoot), { recursive: true })
@@ -452,7 +518,11 @@ Deno.test('sa-mise can still be resolved transparently from PATH', async () => {
   const baseDir = await Deno.makeTempDir()
 
   try {
-    const { pluginRoot } = await createPluginFixture(baseDir, 'session')
+    const { pluginRoot } = await createPluginFixture(
+      baseDir,
+      'session',
+      'sa-mise',
+    )
     const { downloadLogPath, mockBinDir } = await createMockTooling(baseDir)
     const env = createEnv(baseDir, pluginRoot, downloadLogPath, mockBinDir)
     env.PATH = `${join(pluginRoot, 'bin')}:${env.PATH}`
@@ -483,7 +553,11 @@ Deno.test('sa-mise supports the installer platform keys we normalize to', async 
     const baseDir = await Deno.makeTempDir()
 
     try {
-      const { pluginRoot } = await createPluginFixture(baseDir, 'session')
+      const { pluginRoot } = await createPluginFixture(
+        baseDir,
+        'session',
+        'sa-mise',
+      )
       const { downloadLogPath, mockBinDir } = await createMockTooling(baseDir)
       const env = createEnv(baseDir, pluginRoot, downloadLogPath, mockBinDir)
       env.SA_MISE_FORCE_PLATFORM = platform
@@ -511,7 +585,11 @@ Deno.test('sa-mise fails on unsupported platforms', async () => {
   const baseDir = await Deno.makeTempDir()
 
   try {
-    const { pluginRoot } = await createPluginFixture(baseDir, 'session')
+    const { pluginRoot } = await createPluginFixture(
+      baseDir,
+      'session',
+      'sa-mise',
+    )
     const { downloadLogPath, mockBinDir } = await createMockTooling(baseDir)
     const env = createEnv(baseDir, pluginRoot, downloadLogPath, mockBinDir)
     env.SA_MISE_FORCE_PLATFORM = 'windows-x64'
@@ -523,6 +601,231 @@ Deno.test('sa-mise fails on unsupported platforms', async () => {
 
     assertEquals(result.success, false)
     assertStringIncludes(stderr, 'Unsupported sa-mise platform')
+  } finally {
+    await Deno.remove(baseDir, { recursive: true })
+  }
+})
+
+Deno.test('sa-mise-forwarder hook runs through the local forwarder shim after sa-mise is warmed', async () => {
+  const baseDir = await Deno.makeTempDir()
+
+  try {
+    const fixtures = await createPluginFixtures(baseDir, 'session', [
+      'sa-mise',
+      'sa-mise-forwarder',
+    ])
+    const { downloadLogPath, mockBinDir } = await createMockTooling(baseDir)
+    const env = createEnv(
+      baseDir,
+      fixtures['sa-mise'],
+      downloadLogPath,
+      mockBinDir,
+    )
+
+    const warmupResult = await runCommand(
+      join(fixtures['sa-mise'], 'bin', 'mise'),
+      [
+        '--version',
+      ],
+      env,
+    )
+    assertEquals(warmupResult.success, true)
+
+    const hookResult = await runCommand(
+      join(fixtures['sa-mise-forwarder'], 'hooks', 'session-start.sh'),
+      [],
+      env,
+    )
+    const logPath = join(
+      env.CLAUDE_PLUGIN_DATA,
+      'logs',
+      'sa-mise-forwarder-session-start.log',
+    )
+    const logContents = await Deno.readTextFile(logPath)
+
+    assertEquals(hookResult.success, true)
+    assertStringIncludes(
+      logContents,
+      'sample_name=sa-mise-forwarder-session-start',
+    )
+    assertStringIncludes(logContents, 'plugin_name=sa-mise-forwarder')
+    assertStringIncludes(logContents, 'path_strategy=forwarder-shim')
+    assertStringIncludes(
+      logContents,
+      `resolved_mise_path=${
+        join(platformRoot(env.CLAUDE_PLUGIN_DATA), 'bin', 'mise')
+      }`,
+    )
+    assertStringIncludes(logContents, 'mise_version=mise latest test')
+    assertStringIncludes(logContents, 'deno_version=')
+    assertStringIncludes(logContents, 'hook_status=success')
+  } finally {
+    await Deno.remove(baseDir, { recursive: true })
+  }
+})
+
+Deno.test('sa-mise-forwarder fails clearly when sa-mise is not warmed', async () => {
+  const baseDir = await Deno.makeTempDir()
+
+  try {
+    const fixtures = await createPluginFixtures(baseDir, 'session', [
+      'sa-mise-forwarder',
+    ])
+    const { downloadLogPath, mockBinDir } = await createMockTooling(baseDir)
+    const env = createEnv(
+      baseDir,
+      fixtures['sa-mise-forwarder'],
+      downloadLogPath,
+      mockBinDir,
+    )
+
+    const result = await runCommand(
+      join(fixtures['sa-mise-forwarder'], 'bin', 'mise'),
+      [
+        '--version',
+      ],
+      env,
+    )
+    const stderr = new TextDecoder().decode(result.stderr)
+
+    assertEquals(result.success, false)
+    assertStringIncludes(stderr, 'sa-mise is not warmed yet')
+  } finally {
+    await Deno.remove(baseDir, { recursive: true })
+  }
+})
+
+Deno.test('sa-mise-cross-plugin hook falls back to the shared install marker after sa-mise is warmed', async () => {
+  const baseDir = await Deno.makeTempDir()
+
+  try {
+    const fixtures = await createPluginFixtures(baseDir, 'session', [
+      'sa-mise',
+      'sa-mise-cross-plugin',
+    ])
+    const { downloadLogPath, mockBinDir } = await createMockTooling(baseDir)
+    const env = createEnv(
+      baseDir,
+      fixtures['sa-mise'],
+      downloadLogPath,
+      mockBinDir,
+    )
+
+    const warmupResult = await runCommand(
+      join(fixtures['sa-mise'], 'bin', 'mise'),
+      [
+        '--version',
+      ],
+      env,
+    )
+    assertEquals(warmupResult.success, true)
+
+    const hookResult = await runCommand(
+      join(fixtures['sa-mise-cross-plugin'], 'hooks', 'session-start.sh'),
+      [],
+      env,
+    )
+    const logPath = join(
+      env.CLAUDE_PLUGIN_DATA,
+      'logs',
+      'sa-mise-cross-plugin-session-start.log',
+    )
+    const logContents = await Deno.readTextFile(logPath)
+
+    assertEquals(hookResult.success, true)
+    assertStringIncludes(
+      logContents,
+      'sample_name=sa-mise-cross-plugin-session-start',
+    )
+    assertStringIncludes(logContents, 'plugin_name=sa-mise-cross-plugin')
+    assertStringIncludes(logContents, 'path_strategy=install-marker')
+    assertStringIncludes(
+      logContents,
+      `resolved_mise_path=${
+        join(platformRoot(env.CLAUDE_PLUGIN_DATA), 'bin', 'mise')
+      }`,
+    )
+    assertStringIncludes(logContents, 'mise_version=mise latest test')
+    assertStringIncludes(logContents, 'deno_version=')
+    assertStringIncludes(logContents, 'hook_status=success')
+  } finally {
+    await Deno.remove(baseDir, { recursive: true })
+  }
+})
+
+Deno.test('sa-mise-cross-plugin records path strategy when sa-mise is already exposed on PATH', async () => {
+  const baseDir = await Deno.makeTempDir()
+
+  try {
+    const fixtures = await createPluginFixtures(baseDir, 'session', [
+      'sa-mise',
+      'sa-mise-cross-plugin',
+    ])
+    const { downloadLogPath, mockBinDir } = await createMockTooling(baseDir)
+    const env = createEnv(
+      baseDir,
+      fixtures['sa-mise'],
+      downloadLogPath,
+      mockBinDir,
+    )
+    env.PATH = `${join(fixtures['sa-mise'], 'bin')}:${env.PATH}`
+
+    const warmupResult = await runCommand(
+      join(fixtures['sa-mise'], 'bin', 'mise'),
+      [
+        '--version',
+      ],
+      env,
+    )
+    assertEquals(warmupResult.success, true)
+
+    const hookResult = await runCommand(
+      join(fixtures['sa-mise-cross-plugin'], 'hooks', 'session-start.sh'),
+      [],
+      env,
+    )
+    const logPath = join(
+      env.CLAUDE_PLUGIN_DATA,
+      'logs',
+      'sa-mise-cross-plugin-session-start.log',
+    )
+    const logContents = await Deno.readTextFile(logPath)
+
+    assertEquals(hookResult.success, true)
+    assertStringIncludes(logContents, 'path_strategy=path')
+    assertStringIncludes(
+      logContents,
+      `resolved_mise_path=${join(fixtures['sa-mise'], 'bin', 'mise')}`,
+    )
+  } finally {
+    await Deno.remove(baseDir, { recursive: true })
+  }
+})
+
+Deno.test('sa-mise-cross-plugin fails clearly when sa-mise is not warmed and no peer PATH is available', async () => {
+  const baseDir = await Deno.makeTempDir()
+
+  try {
+    const fixtures = await createPluginFixtures(baseDir, 'session', [
+      'sa-mise-cross-plugin',
+    ])
+    const { downloadLogPath, mockBinDir } = await createMockTooling(baseDir)
+    const env = createEnv(
+      baseDir,
+      fixtures['sa-mise-cross-plugin'],
+      downloadLogPath,
+      mockBinDir,
+    )
+
+    const result = await runCommand(
+      join(fixtures['sa-mise-cross-plugin'], 'hooks', 'session-start.sh'),
+      [],
+      env,
+    )
+    const stderr = new TextDecoder().decode(result.stderr)
+
+    assertEquals(result.success, false)
+    assertStringIncludes(stderr, 'sa-mise is not warmed yet')
   } finally {
     await Deno.remove(baseDir, { recursive: true })
   }

@@ -1,0 +1,9 @@
+{
+  "name": "sa-mise-cross-plugin",
+  "version": "1.0.0",
+  "description": "Experimental consumer plugin that discovers sa-mise from PATH or shared Cowork runtime state",
+  "author": {
+    "name": "Vladimir Semashko"
+  },
+  "hooks": "./hooks/hooks.json"
+}

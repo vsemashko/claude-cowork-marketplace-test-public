@@ -19,6 +19,28 @@
         "name": "Vladimir Semashko",
         "email": "vsemashko@gmail.com"
       }
+    },
+    {
+      "name": "sa-mise-forwarder",
+      "description": "Runs shebang hooks through a local forwarder that delegates to the warmed sa-mise runtime",
+      "version": "1.0.0",
+      "category": "core",
+      "source": "./plugins/sa-mise-forwarder",
+      "author": {
+        "name": "Vladimir Semashko",
+        "email": "vsemashko@gmail.com"
+      }
+    },
+    {
+      "name": "sa-mise-cross-plugin",
+      "description": "Experimental consumer plugin that discovers sa-mise from PATH or shared Cowork runtime state",
+      "version": "1.0.0",
+      "category": "core",
+      "source": "./plugins/sa-mise-cross-plugin",
+      "author": {
+        "name": "Vladimir Semashko",
+        "email": "vsemashko@gmail.com"
+      }
     }
   ]
 }

@@ -1,0 +1,9 @@
+{
+  "name": "sa-mise-forwarder",
+  "version": "1.0.0",
+  "description": "Consumer plugin that forwards to sa-mise's warmed runtime for shebang hooks",
+  "author": {
+    "name": "Vladimir Semashko"
+  },
+  "hooks": "./hooks/hooks.json"
+}

@@ -2,16 +2,20 @@ import { assertEquals } from '@std/assert'
 import { exists } from '@std/fs'
 import { join } from '@std/path'
 
-Deno.test('marketplace manifest advertises only the sa-mise plugin', async () => {
+Deno.test('marketplace manifest advertises all three sa-mise plugins', async () => {
   const manifest = JSON.parse(
     await Deno.readTextFile(
       join(Deno.cwd(), '.claude-plugin', 'marketplace.json'),
     ),
   ) as { plugins: Array<{ name: string; source: string }> }
 
-  assertEquals(manifest.plugins.length, 1)
+  assertEquals(manifest.plugins.length, 3)
   assertEquals(manifest.plugins[0]?.name, 'sa-mise')
   assertEquals(manifest.plugins[0]?.source, './plugins/sa-mise')
+  assertEquals(manifest.plugins[1]?.name, 'sa-mise-forwarder')
+  assertEquals(manifest.plugins[1]?.source, './plugins/sa-mise-forwarder')
+  assertEquals(manifest.plugins[2]?.name, 'sa-mise-cross-plugin')
+  assertEquals(manifest.plugins[2]?.source, './plugins/sa-mise-cross-plugin')
 })
 
 Deno.test('sa-mise plugin ships the expected minimal assets', async () => {
@@ -49,6 +53,70 @@ Deno.test('sa-mise plugin ships the expected minimal assets', async () => {
   )
   assertEquals(await exists(join(pluginRoot, 'bin', 'deno')), false)
   assertEquals(await exists(join(pluginRoot, 'deps')), false)
+})
+
+Deno.test('sa-mise-forwarder plugin ships the expected forwarder assets', async () => {
+  const pluginRoot = join(Deno.cwd(), 'plugins', 'sa-mise-forwarder')
+  const pluginConfig = JSON.parse(
+    await Deno.readTextFile(join(pluginRoot, '.claude-plugin', 'plugin.json')),
+  ) as { hooks?: string }
+
+  assertEquals(
+    await exists(join(pluginRoot, '.claude-plugin', 'plugin.json')),
+    true,
+  )
+  assertEquals(pluginConfig.hooks, './hooks/hooks.json')
+  assertEquals(await exists(join(pluginRoot, 'bin', 'mise')), true)
+  assertEquals(
+    await exists(join(pluginRoot, 'scripts', 'cowork-plugin-context.sh')),
+    true,
+  )
+  assertEquals(await exists(join(pluginRoot, 'hooks', 'hooks.json')), true)
+  assertEquals(
+    await exists(join(pluginRoot, 'hooks', 'session-start.sh')),
+    true,
+  )
+  assertEquals(
+    await exists(join(pluginRoot, 'hooks', 'session-start.ts')),
+    true,
+  )
+  assertEquals(
+    await exists(join(pluginRoot, 'skills', 'sa-mise-forwarder', 'SKILL.md')),
+    true,
+  )
+})
+
+Deno.test('sa-mise-cross-plugin ships the expected experimental assets', async () => {
+  const pluginRoot = join(Deno.cwd(), 'plugins', 'sa-mise-cross-plugin')
+  const pluginConfig = JSON.parse(
+    await Deno.readTextFile(join(pluginRoot, '.claude-plugin', 'plugin.json')),
+  ) as { hooks?: string }
+
+  assertEquals(
+    await exists(join(pluginRoot, '.claude-plugin', 'plugin.json')),
+    true,
+  )
+  assertEquals(pluginConfig.hooks, './hooks/hooks.json')
+  assertEquals(await exists(join(pluginRoot, 'bin', 'mise')), false)
+  assertEquals(
+    await exists(join(pluginRoot, 'scripts', 'cowork-plugin-context.sh')),
+    true,
+  )
+  assertEquals(await exists(join(pluginRoot, 'hooks', 'hooks.json')), true)
+  assertEquals(
+    await exists(join(pluginRoot, 'hooks', 'session-start.sh')),
+    true,
+  )
+  assertEquals(
+    await exists(join(pluginRoot, 'hooks', 'session-start.ts')),
+    true,
+  )
+  assertEquals(
+    await exists(
+      join(pluginRoot, 'skills', 'sa-mise-cross-plugin', 'SKILL.md'),
+    ),
+    true,
+  )
 })
 
 Deno.test('config MCPB bundle exists and keeps the expected config contract', async () => {
