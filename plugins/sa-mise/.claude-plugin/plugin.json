@@ -4,6 +4,5 @@
   "description": "Minimal Claude plugin that bootstraps the latest mise binary into plugin data",
   "author": {
     "name": "Vladimir Semashko"
-  },
-  "hooks": "./hooks/hooks.json"
+  }
 }

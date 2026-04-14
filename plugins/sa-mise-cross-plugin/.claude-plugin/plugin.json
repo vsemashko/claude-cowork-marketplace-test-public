@@ -4,6 +4,5 @@
   "description": "Experimental consumer plugin that discovers sa-mise from PATH or shared Cowork runtime state",
   "author": {
     "name": "Vladimir Semashko"
-  },
-  "hooks": "./hooks/hooks.json"
+  }
 }

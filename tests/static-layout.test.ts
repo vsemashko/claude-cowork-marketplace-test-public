@@ -28,7 +28,7 @@ Deno.test('sa-mise plugin ships the expected minimal assets', async () => {
     await exists(join(pluginRoot, '.claude-plugin', 'plugin.json')),
     true,
   )
-  assertEquals(pluginConfig.hooks, './hooks/hooks.json')
+  assertEquals(pluginConfig.hooks, undefined)
   assertEquals(await exists(join(pluginRoot, 'bin', 'mise')), true)
   assertEquals(
     await exists(join(pluginRoot, 'scripts', 'runtime-shim.sh')),
@@ -65,7 +65,7 @@ Deno.test('sa-mise-forwarder plugin ships the expected forwarder assets', async 
     await exists(join(pluginRoot, '.claude-plugin', 'plugin.json')),
     true,
   )
-  assertEquals(pluginConfig.hooks, './hooks/hooks.json')
+  assertEquals(pluginConfig.hooks, undefined)
   assertEquals(await exists(join(pluginRoot, 'bin', 'mise')), true)
   assertEquals(
     await exists(join(pluginRoot, 'scripts', 'cowork-plugin-context.sh')),
@@ -96,7 +96,7 @@ Deno.test('sa-mise-cross-plugin ships the expected experimental assets', async (
     await exists(join(pluginRoot, '.claude-plugin', 'plugin.json')),
     true,
   )
-  assertEquals(pluginConfig.hooks, './hooks/hooks.json')
+  assertEquals(pluginConfig.hooks, undefined)
   assertEquals(await exists(join(pluginRoot, 'bin', 'mise')), false)
   assertEquals(
     await exists(join(pluginRoot, 'scripts', 'cowork-plugin-context.sh')),
