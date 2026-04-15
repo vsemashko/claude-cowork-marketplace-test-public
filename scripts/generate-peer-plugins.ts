@@ -26,14 +26,27 @@ const PEER_PLUGINS: PluginDefinition[] = [
     skillDescription:
       'Run the generated peer-safe mise shim exposed by this marketplace fixture.',
     hasHookFixture: true,
-    sessionStartCommand: [
-      'sa_mise_bin="${CLAUDE_PLUGIN_ROOT:-}/bin"',
-      'if [ -n "${CLAUDE_ENV_FILE:-}" ]; then',
-      '  mkdir -p "$(dirname "$CLAUDE_ENV_FILE")"',
-      `  printf 'case ":$PATH:" in\n*:%s:*) ;;\n*) export PATH="%s:$PATH" ;;\nesac\n' "$sa_mise_bin" "$sa_mise_bin" >> "$CLAUDE_ENV_FILE"`,
-      'fi',
-      '"${CLAUDE_PLUGIN_ROOT:-}/bin/mise" exec deno@latest -- deno eval \'Deno.exit(0)\'',
-    ].join('\n'),
+    sessionStartCommand:
+      '"${CLAUDE_PLUGIN_ROOT:-}/scripts/session-start-sa-mise.sh"',
+    extraFiles: [
+      {
+        path: 'scripts/session-start-sa-mise.sh',
+        executable: true,
+        content: [
+          '#!/bin/sh',
+          '',
+          'set -eu',
+          '',
+          'sa_mise_bin="${CLAUDE_PLUGIN_ROOT:-}/bin"',
+          'if [ -n "${CLAUDE_ENV_FILE:-}" ]; then',
+          '  mkdir -p "$(dirname "$CLAUDE_ENV_FILE")"',
+          `  printf 'case ":$PATH:" in\n*:%s:*) ;;\n*) export PATH="%s:$PATH" ;;\nesac\n' "$sa_mise_bin" "$sa_mise_bin" >> "$CLAUDE_ENV_FILE"`,
+          'fi',
+          '',
+          '"${CLAUDE_PLUGIN_ROOT:-}/bin/mise" exec deno@latest -- deno eval \'Deno.exit(0)\'',
+        ].join('\n'),
+      },
+    ],
   },
   {
     name: 'sa-mise-session-start-a',
@@ -196,7 +209,7 @@ function createHooksJson(plugin: PluginDefinition): string {
 
 function createSkillContent(plugin: PluginDefinition): string {
   const hookNotes = plugin.hasHookFixture
-    ? `- This fixture includes a minimal inline SessionStart hook that exercises
+    ? `- This fixture includes a minimal SessionStart hook that exercises
   its bundled runtime lookup path.
 - Shared resolver diagnostics are still captured here for the shim itself:
   \`\${CLAUDE_PLUGIN_DATA}/state/cowork-plugin-context.env\``
@@ -324,6 +337,15 @@ async function generatePeerPlugin(plugin: PluginDefinition): Promise<void> {
     )
   ) {
     await removeIfExists(join(pluginRoot, 'scripts', 'find-sa-mise-sibling.sh'))
+  }
+  if (
+    !(plugin.extraFiles ?? []).some((file) =>
+      file.path === 'scripts/session-start-sa-mise.sh'
+    )
+  ) {
+    await removeIfExists(
+      join(pluginRoot, 'scripts', 'session-start-sa-mise.sh'),
+    )
   }
 
   if (!plugin.hasHookFixture) {

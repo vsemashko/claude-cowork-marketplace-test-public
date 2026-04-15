@@ -76,24 +76,21 @@ async function createPluginFixture(
     )
   }
 
-  for (const relativePath of filesToCopy) {
+  for (
+    const optionalPath of [
+      'scripts/find-sa-mise-sibling.sh',
+      'scripts/session-start-sa-mise.sh',
+    ]
+  ) {
+    if (await exists(join(REPO_ROOT, 'plugins', pluginName, optionalPath))) {
+      filesToCopy.push(optionalPath)
+    }
+  }
+
+  for (const relativePath of [...new Set(filesToCopy)]) {
     await copyFileWithMode(
       join(REPO_ROOT, 'plugins', pluginName, relativePath),
       join(pluginRoot, relativePath),
-    )
-  }
-
-  const siblingFinderPath = join(
-    REPO_ROOT,
-    'plugins',
-    pluginName,
-    'scripts',
-    'find-sa-mise-sibling.sh',
-  )
-  if (await exists(siblingFinderPath)) {
-    await copyFileWithMode(
-      siblingFinderPath,
-      join(pluginRoot, 'scripts', 'find-sa-mise-sibling.sh'),
     )
   }
 

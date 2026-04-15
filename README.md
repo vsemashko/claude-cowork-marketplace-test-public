@@ -74,7 +74,7 @@ Then install `dist/sa-cowork-config-mcp.mcpb` in Claude Desktop and configure:
   `${CLAUDE_PLUGIN_DATA}/state/cowork-plugin-context.env`
 - the runtime installs the latest official `mise` binary on first use
 - runtime files never write into `${HOME}`
-- all three peer fixtures register minimal inline SessionStart hooks in
+- all three peer fixtures register minimal SessionStart hooks in
   `hooks/hooks.json`
 - `sa-mise` also appends an idempotent PATH export to `CLAUDE_ENV_FILE` so later
   Bash commands in the session can discover its `bin/` directory

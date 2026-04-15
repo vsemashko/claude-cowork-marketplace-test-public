@@ -73,6 +73,10 @@ Deno.test('peer plugins ship identical generated shims and shared helpers', asyn
       true,
     )
     assertEquals(
+      await exists(join(pluginRoot, 'scripts', 'session-start-sa-mise.sh')),
+      pluginName === 'sa-mise',
+    )
+    assertEquals(
       await exists(join(pluginRoot, 'scripts', 'find-sa-mise-sibling.sh')),
       pluginName === 'sa-mise-session-start-b',
     )
@@ -160,11 +164,7 @@ Deno.test('peer plugins ship identical generated shims and shared helpers', asyn
   }
 
   assertEquals(
-    hookCommands['sa-mise'].includes('${CLAUDE_PLUGIN_ROOT:-}/bin/mise'),
-    true,
-  )
-  assertEquals(
-    hookCommands['sa-mise'].includes('CLAUDE_ENV_FILE'),
+    hookCommands['sa-mise'].includes('session-start-sa-mise.sh'),
     true,
   )
   assertEquals(
