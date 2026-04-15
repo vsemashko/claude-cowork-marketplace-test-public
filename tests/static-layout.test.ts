@@ -71,7 +71,7 @@ Deno.test('peer plugins ship identical generated shims and shared helpers', asyn
     )
     assertEquals(
       await exists(join(pluginRoot, 'scripts', 'session-start-sample.ts')),
-      true,
+      false,
     )
     assertEquals(
       await exists(join(pluginRoot, 'skills', pluginName, 'SKILL.md')),
@@ -79,7 +79,7 @@ Deno.test('peer plugins ship identical generated shims and shared helpers', asyn
     )
     assertEquals(
       await exists(join(pluginRoot, 'hooks', 'session-start.sh')),
-      true,
+      false,
     )
     assertEquals(
       await exists(join(pluginRoot, 'hooks', 'hooks.json')),
@@ -117,6 +117,28 @@ Deno.test('peer plugins ship identical generated shims and shared helpers', asyn
         join(pluginRoot, 'scripts', 'cowork-plugin-context.sh'),
       ),
       baselineContext,
+    )
+
+    const hooksConfig = JSON.parse(
+      await Deno.readTextFile(join(pluginRoot, 'hooks', 'hooks.json')),
+    ) as {
+      hooks: {
+        SessionStart: Array<{
+          hooks: Array<{ type: string; command: string }>
+        }>
+      }
+    }
+    const sessionStartCommand = hooksConfig.hooks.SessionStart[0]?.hooks[0]
+      ?.command ?? ''
+
+    assertEquals(sessionStartCommand.includes('session-start.sh'), false)
+    assertEquals(
+      sessionStartCommand.includes('session-start-sample.ts'),
+      false,
+    )
+    assertEquals(
+      sessionStartCommand.includes('mise exec deno@latest'),
+      true,
     )
   }
 })

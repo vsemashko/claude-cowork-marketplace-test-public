@@ -71,14 +71,14 @@ Then install `dist/sa-cowork-config-mcp.mcpb` in Claude Desktop and configure:
   `${CLAUDE_PLUGIN_DATA}/state/cowork-plugin-context.env`
 - the runtime installs the latest official `mise` binary on first use
 - runtime files never write into `${HOME}`
-- all three peer fixtures now register the same minimal SessionStart hook shape
-  and append to one shared home log at: `~/.sa-mise-session-start.log`
+- all three peer fixtures now register the same minimal inline SessionStart hook
+  in `hooks/hooks.json` and append to one shared home log at:
+  `~/.sa-mise-session-start.log`
 - `sa-mise-session-start-a` and `sa-mise-session-start-b` remain symmetric
-  hook-enabled peer fixtures that prove
-  `#!/usr/bin/env -S mise exec deno@latest -- deno run` works for registered
-  hooks too
-- the hook samples emit plugin name, sample name, `mise` version, and `deno`
-  version so the shared trace log is easy to inspect
+  hook-enabled peer fixtures that prove `mise exec deno@latest -- deno eval`
+  works for registered hooks too
+- the inline hook commands emit plugin name, sample name, `mise` version, and
+  `deno` version so the shared trace log is easy to inspect
 
 ## Skill
 

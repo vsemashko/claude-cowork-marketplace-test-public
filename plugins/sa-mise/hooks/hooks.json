@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "${CLAUDE_PLUGIN_ROOT}/hooks/session-start.sh"
+            "command": "LOG_FILE=\"${HOME}/.sa-mise-session-start.log\"\nmkdir -p \"$(dirname \"$LOG_FILE\")\"\ntimestamp=\"$(date -u +\"%Y-%m-%dT%H:%M:%SZ\")\"\nhook_status='failure'\nhook_output=''\nmise_version=''\nif [ \"${SA_MISE_HOOK_FORCE_FAILURE:-}\" = \"1\" ]; then\n  hook_output='forced failure'\nelif mise_version=\"$(mise --version 2>&1)\"; then\n  if hook_output=\"$(SA_MISE_PLUGIN_NAME='sa-mise' SA_MISE_SAMPLE_NAME='sa-mise-session-start' mise exec deno@latest -- deno eval 'console.log(`sample_name=${Deno.env.get(\"SA_MISE_SAMPLE_NAME\") ?? \"unknown\"}`); console.log(`plugin_name=${Deno.env.get(\"SA_MISE_PLUGIN_NAME\") ?? \"unknown\"}`); console.log(`deno_version=${Deno.version.deno}`)' 2>&1)\"; then\n    hook_status='success'\n  fi\nelse\n  hook_output=\"$mise_version\"\n  mise_version=''\nfi\n{\n  printf 'timestamp=%s\\n' \"$timestamp\"\n  printf 'plugin_name=%s\\n' 'sa-mise'\n  printf 'hook_status=%s\\n' \"$hook_status\"\n  if [ -n \"$mise_version\" ]; then\n    printf 'mise_version=%s\\n' \"$mise_version\"\n  fi\n  printf '%s\\n\\n' \"$hook_output\"\n} >> \"$LOG_FILE\""
           }
         ]
       }

@@ -67,8 +67,6 @@ async function createPluginFixture(
   if (hasHookFixture(pluginName)) {
     filesToCopy.push(
       'hooks/hooks.json',
-      'hooks/session-start.sh',
-      'scripts/session-start-sample.ts',
     )
   }
 
@@ -133,10 +131,9 @@ if [ "\${1:-}" = "--version" ]; then
 fi
 
 if [ "\${1:-}" = "exec" ] && [ "\${2:-}" = "deno@latest" ] &&
-  [ "\${3:-}" = "--" ] && [ "\${4:-}" = "deno" ] &&
-  [ "\${5:-}" = "run" ]; then
-  shift 5
-  exec "\${DENO_REAL_BIN:?}" run "$@"
+  [ "\${3:-}" = "--" ] && [ "\${4:-}" = "deno" ]; then
+  shift 4
+  exec "\${DENO_REAL_BIN:?}" "$@"
 fi
 
 printf 'unexpected mise args:' >&2
@@ -267,6 +264,20 @@ function sharedHookLogPath(homeRoot: string): string {
   return join(homeRoot, '.sa-mise-session-start.log')
 }
 
+async function readSessionStartCommand(pluginRoot: string): Promise<string> {
+  const hooksConfig = JSON.parse(
+    await Deno.readTextFile(join(pluginRoot, 'hooks', 'hooks.json')),
+  ) as {
+    hooks: {
+      SessionStart: Array<{
+        hooks: Array<{ type: string; command: string }>
+      }>
+    }
+  }
+
+  return hooksConfig.hooks.SessionStart[0]?.hooks[0]?.command ?? ''
+}
+
 function createEnv(
   baseDir: string,
   pluginName: PluginName,
@@ -302,6 +313,17 @@ async function runCommand(
     stderr: 'piped',
     stdout: 'piped',
   }).output()
+}
+
+async function runSessionStartHook(
+  pluginRoot: string,
+  env: Record<string, string>,
+) {
+  const hookCommand = await readSessionStartCommand(pluginRoot)
+  return await runCommand('sh', ['-eu', '-c', hookCommand], {
+    ...env,
+    PATH: `${join(pluginRoot, 'bin')}:${env.PATH}`,
+  })
 }
 
 Deno.test('any peer plugin can cold-start and publish the shared runtime', async () => {
@@ -719,11 +741,7 @@ Deno.test('all peer SessionStart hooks append sample output to the shared home l
         sharedRoot,
       )
 
-      const hookResult = await runCommand(
-        join(pluginRoot, 'hooks', 'session-start.sh'),
-        [],
-        env,
-      )
+      const hookResult = await runSessionStartHook(pluginRoot, env)
 
       assertEquals(hookResult.success, true)
     }
@@ -751,7 +769,7 @@ Deno.test('all peer SessionStart hooks append sample output to the shared home l
   }
 })
 
-Deno.test('SessionStart hook logs failures from the sample script into the shared home log', async () => {
+Deno.test('SessionStart hook logs forced failures into the shared home log', async () => {
   const baseDir = await Deno.makeTempDir()
 
   try {
@@ -771,26 +789,16 @@ Deno.test('SessionStart hook logs failures from the sample script into the share
       sharedRoot,
     )
 
-    await writeExecutable(
-      join(pluginRoot, 'scripts', 'session-start-sample.ts'),
-      `#!/usr/bin/env -S mise exec deno@latest -- deno run -A
+    env.SA_MISE_HOOK_FORCE_FAILURE = '1'
 
-throw new Error('hook sample exploded')
-`,
-    )
-
-    const hookResult = await runCommand(
-      join(pluginRoot, 'hooks', 'session-start.sh'),
-      [],
-      env,
-    )
+    const hookResult = await runSessionStartHook(pluginRoot, env)
     const logPath = sharedHookLogPath(env.HOME)
     const logContents = await Deno.readTextFile(logPath)
 
     assertEquals(hookResult.success, true)
     assertStringIncludes(logContents, 'plugin_name=sa-mise-session-start-a')
     assertStringIncludes(logContents, 'hook_status=failure')
-    assertStringIncludes(logContents, 'Error: hook sample exploded')
+    assertStringIncludes(logContents, 'forced failure')
   } finally {
     await Deno.remove(baseDir, { recursive: true })
   }

@@ -51,7 +51,6 @@ const PEER_PLUGINS: PluginDefinition[] = [
 
 const EXECUTABLE_TEMPLATE_FILES = new Set([
   'bin/mise',
-  'hooks/session-start.sh',
   'scripts/cowork-plugin-context.sh',
   'scripts/cowork-runtime-common.sh',
   'scripts/cowork-shared-runtime.sh',
@@ -62,11 +61,6 @@ const SHARED_TEMPLATE_FILES = [
   'scripts/cowork-plugin-context.sh',
   'scripts/cowork-runtime-common.sh',
   'scripts/cowork-shared-runtime.sh',
-]
-
-const HOOK_TEMPLATE_FILES = [
-  'hooks/hooks.json',
-  'hooks/session-start.sh',
 ]
 
 const repoRoot = dirname(dirname(fromFileUrl(import.meta.url)))
@@ -116,9 +110,75 @@ function createPluginJson(plugin: PluginDefinition): string {
   }\n`
 }
 
+function createSessionStartCommand(plugin: PluginDefinition): string {
+  if (!plugin.sampleName) {
+    throw new Error(
+      `Hook fixture sample requested for ${plugin.name} without sample name`,
+    )
+  }
+
+  const denoEval = [
+    'console.log(`sample_name=${Deno.env.get("SA_MISE_SAMPLE_NAME") ?? "unknown"}`)',
+    'console.log(`plugin_name=${Deno.env.get("SA_MISE_PLUGIN_NAME") ?? "unknown"}`)',
+    'console.log(`deno_version=${Deno.version.deno}`)',
+  ].join('; ')
+
+  return [
+    'LOG_FILE="${HOME}/.sa-mise-session-start.log"',
+    'mkdir -p "$(dirname "$LOG_FILE")"',
+    'timestamp="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"',
+    "hook_status='failure'",
+    "hook_output=''",
+    "mise_version=''",
+    'if [ "${SA_MISE_HOOK_FORCE_FAILURE:-}" = "1" ]; then',
+    "  hook_output='forced failure'",
+    'elif mise_version="$(mise --version 2>&1)"; then',
+    `  if hook_output="$(SA_MISE_PLUGIN_NAME='${plugin.name}' SA_MISE_SAMPLE_NAME='${plugin.sampleName}' mise exec deno@latest -- deno eval '${denoEval}' 2>&1)"; then`,
+    "    hook_status='success'",
+    '  fi',
+    'else',
+    '  hook_output="$mise_version"',
+    "  mise_version=''",
+    'fi',
+    '{',
+    '  printf \'timestamp=%s\\n\' "$timestamp"',
+    `  printf 'plugin_name=%s\\n' '${plugin.name}'`,
+    '  printf \'hook_status=%s\\n\' "$hook_status"',
+    '  if [ -n "$mise_version" ]; then',
+    '    printf \'mise_version=%s\\n\' "$mise_version"',
+    '  fi',
+    '  printf \'%s\\n\\n\' "$hook_output"',
+    '} >> "$LOG_FILE"',
+  ].join('\n')
+}
+
+function createHooksJson(plugin: PluginDefinition): string {
+  return `${
+    JSON.stringify(
+      {
+        hooks: {
+          SessionStart: [
+            {
+              matcher: '',
+              hooks: [
+                {
+                  type: 'command',
+                  command: createSessionStartCommand(plugin),
+                },
+              ],
+            },
+          ],
+        },
+      },
+      null,
+      2,
+    )
+  }\n`
+}
+
 function createSkillContent(plugin: PluginDefinition): string {
   const hookNotes = plugin.hasHookFixture
-    ? `- Registered SessionStart hooks from all three peer fixtures append to:
+    ? `- Registered inline SessionStart hooks from all three peer fixtures append to:
   \`~/.sa-mise-session-start.log\`
 - To inspect the shared hook trace, print the log directly:
   \`cat ~/.sa-mise-session-start.log\`
@@ -187,28 +247,6 @@ ${traceSection}
 `
 }
 
-function createSessionStartSample(plugin: PluginDefinition): string {
-  if (!plugin.sampleName) {
-    throw new Error(
-      `Hook fixture sample requested for ${plugin.name} without sample name`,
-    )
-  }
-
-  return `#!/usr/bin/env -S mise exec deno@latest -- deno run -A
-const miseVersion = await new Deno.Command('mise', {
-  args: ['--version'],
-  stdout: 'piped',
-}).output()
-
-const miseStdout = new TextDecoder().decode(miseVersion.stdout).trim()
-
-console.log('sample_name=${plugin.sampleName}')
-console.log('plugin_name=${plugin.name}')
-console.log(\`mise_version=\${miseStdout}\`)
-console.log(\`deno_version=\${Deno.version.deno}\`)
-`
-}
-
 function createMarketplaceManifest(): string {
   return `${
     JSON.stringify(
@@ -253,9 +291,10 @@ async function generatePeerPlugin(plugin: PluginDefinition): Promise<void> {
   }
 
   if (plugin.hasHookFixture) {
-    for (const relativePath of HOOK_TEMPLATE_FILES) {
-      await copySharedTemplate(relativePath, pluginRoot)
-    }
+    await writeFile(
+      join(pluginRoot, 'hooks', 'hooks.json'),
+      createHooksJson(plugin),
+    )
   }
 
   await writeFile(
@@ -266,20 +305,13 @@ async function generatePeerPlugin(plugin: PluginDefinition): Promise<void> {
     join(pluginRoot, 'skills', plugin.skillName, 'SKILL.md'),
     createSkillContent(plugin),
   )
-  if (plugin.hasHookFixture) {
-    await writeFile(
-      join(pluginRoot, 'scripts', 'session-start-sample.ts'),
-      createSessionStartSample(plugin),
-      true,
-    )
-  }
-
   await removeIfExists(join(pluginRoot, 'scripts', 'runtime-shim.sh'))
   await removeIfExists(join(pluginRoot, 'hooks', 'session-start.ts'))
+  await removeIfExists(join(pluginRoot, 'hooks', 'session-start.sh'))
+  await removeIfExists(join(pluginRoot, 'scripts', 'session-start-sample.ts'))
 
   if (!plugin.hasHookFixture) {
     await removeIfExists(join(pluginRoot, 'hooks'))
-    await removeIfExists(join(pluginRoot, 'scripts', 'session-start-sample.ts'))
   }
 }
 
