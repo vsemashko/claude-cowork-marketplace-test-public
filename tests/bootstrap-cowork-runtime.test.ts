@@ -249,6 +249,23 @@ function stateFilePath(pluginDataRoot: string): string {
   return join(pluginDataRoot, 'state', 'cowork-plugin-context.env')
 }
 
+function derivedSharedRootFromPluginData(
+  pluginDataRoot: string,
+  pluginName: PluginName,
+): string {
+  const suffix = join('.claude', 'plugins', 'data', pluginName)
+  const normalizedPath = pluginDataRoot.replace(/\\/g, '/')
+  const normalizedSuffix = suffix.replace(/\\/g, '/')
+
+  if (!normalizedPath.endsWith(normalizedSuffix)) {
+    throw new Error(
+      `Plugin data path does not end with expected suffix: ${pluginDataRoot}`,
+    )
+  }
+
+  return pluginDataRoot.slice(0, pluginDataRoot.length - suffix.length - 1)
+}
+
 function createEnv(
   baseDir: string,
   pluginName: PluginName,
@@ -346,6 +363,64 @@ Deno.test('peer plugins derive isolated plugin data paths without explicit env',
     assertStringIncludes(
       await Deno.readTextFile(stateFilePath(pluginDataRoot)),
       'COWORK_PLUGIN_DATA_SOURCE=layout-discovery',
+    )
+  } finally {
+    await Deno.remove(baseDir, { recursive: true })
+  }
+})
+
+Deno.test('live CLAUDE_PLUGIN_DATA can derive the shared root even when plugin layout is unsupported', async () => {
+  const baseDir = await Deno.makeTempDir()
+
+  try {
+    const pluginName = 'sa-mise'
+    const { pluginRoot } = await createPluginFixture(
+      baseDir,
+      'guest',
+      pluginName,
+    )
+    const unsupportedPluginRoot = join(
+      baseDir,
+      'plain-layout',
+      'plugin',
+      pluginName,
+    )
+    const { downloadLogPath, mockBinDir } = await createMockTooling(baseDir)
+
+    await Deno.mkdir(dirname(unsupportedPluginRoot), { recursive: true })
+    await Deno.rename(pluginRoot, unsupportedPluginRoot)
+
+    const validPluginDataRoot = join(
+      baseDir,
+      'derived-shared-root',
+      '.claude',
+      'plugins',
+      'data',
+      pluginName,
+    )
+    const env = createEnv(baseDir, pluginName, downloadLogPath, mockBinDir)
+    env.CLAUDE_PLUGIN_DATA = validPluginDataRoot
+
+    const result = await runCommand(
+      join(unsupportedPluginRoot, 'bin', 'mise'),
+      [
+        '--version',
+      ],
+      env,
+    )
+    const stdout = new TextDecoder().decode(result.stdout)
+    const derivedSharedRoot = derivedSharedRootFromPluginData(
+      validPluginDataRoot,
+      pluginName,
+    )
+
+    assertEquals(result.success, true)
+    assertStringIncludes(stdout, 'mise latest test')
+    assertEquals(await exists(runtimeBinaryPath(validPluginDataRoot)), true)
+    assertEquals(await exists(sharedRuntimeBinaryPath(derivedSharedRoot)), true)
+    assertStringIncludes(
+      await Deno.readTextFile(stateFilePath(validPluginDataRoot)),
+      `COWORK_SHARED_ROOT=${derivedSharedRoot}`,
     )
   } finally {
     await Deno.remove(baseDir, { recursive: true })
@@ -604,6 +679,61 @@ Deno.test('peer shims still fail clearly on unsupported platforms', async () => 
 
     assertEquals(result.success, false)
     assertStringIncludes(stderr, 'Unsupported sa-mise platform')
+  } finally {
+    await Deno.remove(baseDir, { recursive: true })
+  }
+})
+
+Deno.test('invalid CLAUDE_PLUGIN_DATA fallback fails before shared runtime bootstrap starts', async () => {
+  const baseDir = await Deno.makeTempDir()
+
+  try {
+    const pluginName = 'sa-mise-forwarder'
+    const { pluginRoot } = await createPluginFixture(
+      baseDir,
+      'guest',
+      pluginName,
+    )
+    const unsupportedPluginRoot = join(
+      baseDir,
+      'plain-layout',
+      'plugin',
+      pluginName,
+    )
+    const { downloadLogPath, mockBinDir } = await createMockTooling(baseDir)
+
+    await Deno.mkdir(dirname(unsupportedPluginRoot), { recursive: true })
+    await Deno.rename(pluginRoot, unsupportedPluginRoot)
+
+    const env = createEnv(baseDir, pluginName, downloadLogPath, mockBinDir)
+    env.CLAUDE_PLUGIN_DATA = join(baseDir, 'invalid-plugin-data-root')
+
+    const result = await runCommand(
+      join(unsupportedPluginRoot, 'bin', 'mise'),
+      [
+        '--version',
+      ],
+      env,
+    )
+    const stderr = new TextDecoder().decode(result.stderr)
+
+    assertEquals(result.success, false)
+    assertStringIncludes(
+      stderr,
+      'Unable to resolve Cowork shared root from plugin root or CLAUDE_PLUGIN_DATA.',
+    )
+    assertEquals(await exists(downloadLogPath), false)
+    assertEquals(
+      await exists(
+        join(
+          baseDir,
+          'invalid-plugin-data-root',
+          'state',
+          'cowork-plugin-context.env',
+        ),
+      ),
+      false,
+    )
   } finally {
     await Deno.remove(baseDir, { recursive: true })
   }

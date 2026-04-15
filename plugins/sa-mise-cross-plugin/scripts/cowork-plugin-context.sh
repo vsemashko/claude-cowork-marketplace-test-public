@@ -27,7 +27,7 @@ shell_quote() {
   printf "'%s'" "$escaped"
 }
 
-derive_base_root() {
+derive_shared_root_from_plugin_root() {
   derived=''
 
   derived="$(printf '%s\n' "$plugin_root" | sed -n 's#^\(.*\/sessions\/[^/][^/]*/mnt\)/.*#\1#p' | head -n 1)"
@@ -51,6 +51,21 @@ derive_base_root() {
   return 1
 }
 
+derive_shared_root_from_plugin_data() {
+  plugin_data_root="$1"
+  plugin_name_value="$2"
+  expected_suffix="/.claude/plugins/data/${plugin_name_value}"
+
+  case "$plugin_data_root" in
+    *"$expected_suffix")
+      printf '%s\n' "${plugin_data_root%"$expected_suffix"}"
+      return 0
+      ;;
+  esac
+
+  return 1
+}
+
 read_plugin_name() {
   plugin_json_path="${plugin_root}/.claude-plugin/plugin.json"
   [ -f "$plugin_json_path" ] || fail "Missing plugin metadata: $plugin_json_path"
@@ -61,20 +76,27 @@ read_plugin_name() {
 }
 
 resolve_context() {
-  resolved_shared_root="$(derive_base_root || true)"
+  plugin_name="$(read_plugin_name)"
+  resolved_shared_root="$(derive_shared_root_from_plugin_root || true)"
 
   if [ -n "${CLAUDE_PLUGIN_DATA:-}" ]; then
     resolved_plugin_data="$CLAUDE_PLUGIN_DATA"
     resolved_source='live-env'
+
+    if [ -z "$resolved_shared_root" ]; then
+      resolved_shared_root="$(
+        derive_shared_root_from_plugin_data "$resolved_plugin_data" "$plugin_name" || true
+      )"
+    fi
+
+    [ -n "$resolved_shared_root" ] || fail \
+      'Unable to resolve Cowork shared root from plugin root or CLAUDE_PLUGIN_DATA.'
   else
     [ -n "$resolved_shared_root" ] || fail 'Unable to resolve Cowork plugin data from env or plugin layout.'
-    plugin_name="$(read_plugin_name)"
     resolved_plugin_data="${resolved_shared_root}/.claude/plugins/data/${plugin_name}"
     resolved_source='layout-discovery'
   fi
 
-  [ -n "$plugin_name" ] || plugin_name="$(read_plugin_name)"
-  [ -n "$resolved_shared_root" ] || resolved_shared_root="$(derive_base_root || true)"
   resolved_state_file="${resolved_plugin_data}/state/cowork-plugin-context.env"
 }
 
