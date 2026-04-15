@@ -1,8 +1,0 @@
-{
-  "name": "sa-mise-session-start-c",
-  "version": "1.0.0",
-  "description": "Peer Cowork fixture whose UserPromptSubmit hook relies on env inherited from sa-mise SessionStart exports",
-  "author": {
-    "name": "Vladimir Semashko"
-  }
-}

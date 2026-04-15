@@ -5,8 +5,7 @@ description: Run the generated peer-safe mise shim exposed by this marketplace f
 
 # sa-mise
 
-Use this skill when the user wants to run `mise` through the `sa-mise` peer
-fixture.
+Use this skill when the user wants to run `mise` through the `sa-mise` fixture.
 
 ## Command
 
@@ -16,13 +15,7 @@ If the plugin `bin/` directory is already on `PATH`, run `mise` directly:
 mise <args>
 ```
 
-For a basic availability check:
-
-```bash
-mise --version
-```
-
-If `mise` is not on `PATH`, fall back to the plugin-local shim path:
+If `mise` is not yet on `PATH`, fall back to the plugin-local shim path:
 
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/bin/mise <args>
@@ -30,16 +23,13 @@ ${CLAUDE_PLUGIN_ROOT}/bin/mise <args>
 
 ## Notes
 
-- This fixture ships the same generated `bin/mise` shim as every other
-  `sa-mise*` peer plugin in this repo.
+- This fixture ships the canonical generated `bin/mise` shim.
 - The shim keeps a durable local mirror at:
   `${CLAUDE_PLUGIN_DATA}/runtime-mirror/mise/<platform>/`
 - The active session runtime is shared at:
   `<shared-root>/.claude/plugins/shared-runtime/mise/<platform>/`
-- Any peer plugin may run first, recreate the shared symlink, or backfill its
-  own mirror from shared state.
-- This fixture includes a minimal SessionStart hook that writes PATH plus a
-  probe env var into CLAUDE_ENV_FILE, exercises its bundled runtime lookup path,
-  and later checks same-plugin env visibility on UserPromptSubmit.
+- This fixture owns the canonical bin/mise shim, runs a SessionStart runtime
+  probe through its own binary, and injects a SessionStart prompt instruction to
+  always reply with ", sir".
 - Shared resolver diagnostics are still captured here for the shim itself:
   `${CLAUDE_PLUGIN_DATA}/state/cowork-plugin-context.env`

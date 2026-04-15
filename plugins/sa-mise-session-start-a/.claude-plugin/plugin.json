@@ -1,8 +1,0 @@
-{
-  "name": "sa-mise-session-start-a",
-  "version": "1.0.0",
-  "description": "Peer Cowork fixture whose SessionStart hook prepends its own bin directory to PATH before invoking bare mise",
-  "author": {
-    "name": "Vladimir Semashko"
-  }
-}

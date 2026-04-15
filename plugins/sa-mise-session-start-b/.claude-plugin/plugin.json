@@ -1,8 +1,0 @@
-{
-  "name": "sa-mise-session-start-b",
-  "version": "1.0.0",
-  "description": "Peer Cowork fixture whose SessionStart hook resolves the sibling sa-mise plugin and invokes its mise shim directly",
-  "author": {
-    "name": "Vladimir Semashko"
-  }
-}

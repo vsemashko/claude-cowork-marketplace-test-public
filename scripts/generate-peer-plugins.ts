@@ -1,43 +1,57 @@
 import { ensureDir } from '@std/fs'
 import { dirname, fromFileUrl, join } from '@std/path'
 
+type HookDefinition = {
+  event: 'SessionStart' | 'CwdChanged' | 'FileChanged' | 'UserPromptSubmit'
+  label: string
+  matcher?: string
+  command: string
+}
+
 type PluginDefinition = {
   name: string
   description: string
   skillName: string
   skillDescription: string
-  hasHookFixture: boolean
-  hookSummary?: string
-  hooks?: Array<{
-    event: 'SessionStart' | 'CwdChanged' | 'FileChanged' | 'UserPromptSubmit'
-    label: string
-    matcher?: string
-    setup?: string
-    command: string
-  }>
+  hookSummary: string
+  hooks: HookDefinition[]
+  sharedTemplateFiles?: string[]
+  hookCommandPrefixScript?: string
   extraFiles?: Array<{ path: string; content: string; executable?: boolean }>
 }
 
 const VERSION = '1.0.0'
-const SESSION_ENV_PROBE_VAR = 'SA_MISE_SESSION_ENV_PROBE'
-const SESSION_ENV_PROBE_VALUE = 'visible-from-session-start'
-const HOOK_RESULTS_LOG_NAME = '.sa-mise-hook-results.log'
 const OWNER = {
   name: 'Vladimir Semashko',
   email: 'vsemashko@gmail.com',
 }
 
+const SHARED_TEMPLATE_FILES = [
+  'bin/mise',
+  'scripts/cowork-plugin-context.sh',
+  'scripts/cowork-runtime-common.sh',
+  'scripts/cowork-shared-runtime.sh',
+]
+
+const EXECUTABLE_TEMPLATE_FILES = new Set(SHARED_TEMPLATE_FILES)
+const OBSOLETE_PLUGIN_DIRS = [
+  'sa-mise-session-start-a',
+  'sa-mise-session-start-b',
+  'sa-mise-session-start-c',
+]
+
+const REPLY_WITH_SIR_CONTEXT = 'Always end every assistant reply with ", sir".'
+
 const PEER_PLUGINS: PluginDefinition[] = [
   {
     name: 'sa-mise',
     description:
-      'Primary peer Cowork fixture whose SessionStart hook invokes the local mise shim through ${CLAUDE_PLUGIN_ROOT}/bin/mise',
+      'Canonical Cowork fixture that owns the generated mise shim, shared runtime bootstrap flow, and SessionStart prompt injection.',
     skillName: 'sa-mise',
     skillDescription:
       'Run the generated peer-safe mise shim exposed by this marketplace fixture.',
-    hasHookFixture: true,
     hookSummary:
-      'This fixture includes a minimal SessionStart hook that writes PATH plus a probe env var into CLAUDE_ENV_FILE, exercises its bundled runtime lookup path, and later checks same-plugin env visibility on UserPromptSubmit.',
+      'This fixture owns the canonical bin/mise shim, runs a SessionStart runtime probe through its own binary, and injects a SessionStart prompt instruction to always reply with ", sir".',
     hooks: [
       {
         event: 'SessionStart',
@@ -46,13 +60,13 @@ const PEER_PLUGINS: PluginDefinition[] = [
         command: '"${CLAUDE_PLUGIN_ROOT:-}/scripts/session-start-sa-mise.sh"',
       },
       {
-        event: 'UserPromptSubmit',
-        label: 'probe-env-visible',
+        event: 'SessionStart',
+        label: 'reply-sir',
         matcher: '',
-        command:
-          `test "\${${SESSION_ENV_PROBE_VAR}:-}" = "${SESSION_ENV_PROBE_VALUE}"`,
+        command: '"${CLAUDE_PLUGIN_ROOT:-}/hooks/reply-sir.sh"',
       },
     ],
+    sharedTemplateFiles: SHARED_TEMPLATE_FILES,
     extraFiles: [
       {
         path: 'scripts/session-start-sa-mise.sh',
@@ -62,71 +76,52 @@ const PEER_PLUGINS: PluginDefinition[] = [
           '',
           'set -eu',
           '',
-          'sa_mise_bin="${CLAUDE_PLUGIN_ROOT:-}/bin"',
-          'if [ -n "${CLAUDE_ENV_FILE:-}" ]; then',
-          '  mkdir -p "$(dirname "$CLAUDE_ENV_FILE")"',
-          `  printf 'case ":$PATH:" in\n*:%s:*) ;;\n*) export PATH="%s:$PATH" ;;\nesac\n' "$sa_mise_bin" "$sa_mise_bin" >> "$CLAUDE_ENV_FILE"`,
-          `  printf 'export ${SESSION_ENV_PROBE_VAR}="%s"\\n' "${SESSION_ENV_PROBE_VALUE}" >> "$CLAUDE_ENV_FILE"`,
-          'fi',
-          '',
           '"${CLAUDE_PLUGIN_ROOT:-}/bin/mise" exec deno@latest -- deno eval \'Deno.exit(0)\' >/dev/null 2>&1',
         ].join('\n'),
       },
-    ],
-  },
-  {
-    name: 'sa-mise-session-start-a',
-    description:
-      'Peer Cowork fixture whose SessionStart hook prepends its own bin directory to PATH before invoking bare mise',
-    skillName: 'sa-mise-session-start-a',
-    skillDescription:
-      'Run the generated peer-safe mise shim exposed by SessionStart hook fixture A.',
-    hasHookFixture: true,
-    hookSummary:
-      'This fixture includes a minimal SessionStart hook that prepends its bundled bin directory to PATH before invoking bare mise.',
-    hooks: [
       {
-        event: 'SessionStart',
-        label: 'path-probe',
-        matcher: '',
-        setup: 'PATH="${CLAUDE_PLUGIN_ROOT:-}/bin:${PATH}"',
-        command:
-          "mise exec deno@latest -- deno eval 'Deno.exit(0)' >/dev/null 2>&1",
-      },
-    ],
-  },
-  {
-    name: 'sa-mise-session-start-b',
-    description:
-      'Peer Cowork fixture whose SessionStart hook resolves the sibling sa-mise plugin and invokes its mise shim directly',
-    skillName: 'sa-mise-session-start-b',
-    skillDescription:
-      'Run the generated peer-safe mise shim exposed by SessionStart hook fixture B.',
-    hasHookFixture: true,
-    hookSummary:
-      'This fixture includes a minimal SessionStart hook that resolves the sibling sa-mise plugin and invokes its bundled mise shim directly.',
-    hooks: [
-      {
-        event: 'SessionStart',
-        label: 'sibling-probe',
-        matcher: '',
-        command: [
-          'sibling_root="$("${CLAUDE_PLUGIN_ROOT:-}/scripts/find-sa-mise-sibling.sh")"',
-          '"$sibling_root/bin/mise" exec deno@latest -- deno eval \'Deno.exit(0)\' >/dev/null 2>&1',
-        ].join('\n'),
-      },
-    ],
-    extraFiles: [
-      {
-        path: 'scripts/find-sa-mise-sibling.sh',
+        path: 'hooks/reply-sir.sh',
         executable: true,
         content: [
           '#!/bin/sh',
           '',
           'set -eu',
           '',
+          `printf '%s\\n' '{"continue":true,"hookSpecificOutput":{"hookEventName":"SessionStart","additionalContext":"${
+            REPLY_WITH_SIR_CONTEXT.replaceAll('"', '\\"')
+          }"}}'`,
+        ].join('\n'),
+      },
+    ],
+  },
+  {
+    name: 'sa-mise-user',
+    description:
+      'Lightweight Cowork fixture that does not ship its own binary and instead resolves the sibling sa-mise plugin before running authored hooks.',
+    skillName: 'sa-mise-user',
+    skillDescription:
+      'Run bare mise commands through the sibling sa-mise plugin resolved at hook execution time.',
+    hookSummary:
+      'This fixture does not ship bin/mise. During generation, each command hook is rewritten to source scripts/resolve-env.sh before running the authored bare mise command.',
+    hooks: [
+      {
+        event: 'SessionStart',
+        label: 'runtime-probe',
+        matcher: '',
+        command:
+          "mise exec deno@latest -- deno eval 'Deno.exit(0)' >/dev/null 2>&1",
+      },
+    ],
+    hookCommandPrefixScript: 'scripts/resolve-env.sh',
+    extraFiles: [
+      {
+        path: 'scripts/resolve-env.sh',
+        executable: true,
+        content: [
+          '#!/bin/sh',
+          '',
           'plugin_root="${CLAUDE_PLUGIN_ROOT:-}"',
-          '[ -n "$plugin_root" ] || { echo "CLAUDE_PLUGIN_ROOT is required" >&2; exit 1; }',
+          '[ -n "$plugin_root" ] || { echo "CLAUDE_PLUGIN_ROOT is required" >&2; return 1 2>/dev/null || exit 1; }',
           '',
           'plugin_parent="$(dirname "$plugin_root")"',
           'for sibling_plugin_root in "$plugin_parent"/*; do',
@@ -135,58 +130,21 @@ const PEER_PLUGINS: PluginDefinition[] = [
           '  [ -f "$sibling_metadata" ] || continue',
           `  sibling_name="$(sed -n 's/^[[:space:]]*"name"[[:space:]]*:[[:space:]]*"\\([^"]*\\)".*$/\\1/p' "$sibling_metadata" | head -n 1)"`,
           '  if [ "$sibling_name" = "sa-mise" ]; then',
-          '    printf "%s\\n" "$sibling_plugin_root"',
-          '    exit 0',
+          '    sa_mise_plugin_root="$sibling_plugin_root"',
+          '    sa_mise_bin="$sa_mise_plugin_root/bin"',
+          '    [ -x "$sa_mise_bin/mise" ] || { echo "sa-mise bin/mise is missing" >&2; return 1 2>/dev/null || exit 1; }',
+          '    export SA_MISE_PLUGIN_ROOT="$sa_mise_plugin_root"',
+          '    export PATH="$sa_mise_bin:$PATH"',
+          '    return 0 2>/dev/null || exit 0',
           '  fi',
           'done',
           '',
           'echo "sa-mise plugin not found" >&2',
-          'exit 1',
+          'return 1 2>/dev/null || exit 1',
         ].join('\n'),
       },
     ],
   },
-  {
-    name: 'sa-mise-session-start-c',
-    description:
-      'Peer Cowork fixture whose UserPromptSubmit hook relies on env inherited from sa-mise SessionStart exports',
-    skillName: 'sa-mise-session-start-c',
-    skillDescription:
-      'Run the generated peer-safe mise shim exposed by SessionStart hook fixture C.',
-    hasHookFixture: true,
-    hookSummary:
-      'This fixture includes a minimal UserPromptSubmit hook that expects inherited PATH and probe env visibility without sourcing CLAUDE_ENV_FILE.',
-    hooks: [
-      {
-        event: 'UserPromptSubmit',
-        label: 'probe-env-visible',
-        matcher: '',
-        command:
-          `test "\${${SESSION_ENV_PROBE_VAR}:-}" = "${SESSION_ENV_PROBE_VALUE}"`,
-      },
-      {
-        event: 'UserPromptSubmit',
-        label: 'probe-path-visible',
-        matcher: '',
-        command:
-          "mise exec deno@latest -- deno eval 'Deno.exit(0)' >/dev/null 2>&1",
-      },
-    ],
-  },
-]
-
-const EXECUTABLE_TEMPLATE_FILES = new Set([
-  'bin/mise',
-  'scripts/cowork-plugin-context.sh',
-  'scripts/cowork-runtime-common.sh',
-  'scripts/cowork-shared-runtime.sh',
-])
-
-const SHARED_TEMPLATE_FILES = [
-  'bin/mise',
-  'scripts/cowork-plugin-context.sh',
-  'scripts/cowork-runtime-common.sh',
-  'scripts/cowork-shared-runtime.sh',
 ]
 
 const repoRoot = dirname(dirname(fromFileUrl(import.meta.url)))
@@ -218,62 +176,6 @@ async function copySharedTemplate(
   )
 }
 
-function wrapHookCommand(
-  pluginName: string,
-  hook: NonNullable<PluginDefinition['hooks']>[number],
-): string {
-  return [
-    `hook_results_log="\${CLAUDE_PROJECT_DIR:-\${PWD:-.}}/${HOOK_RESULTS_LOG_NAME}"`,
-    'mkdir -p "$(dirname "$hook_results_log")"',
-    ...(hook.setup ? [hook.setup] : []),
-    'path_value="${PATH:-}"',
-    `env_probe_value="\${${SESSION_ENV_PROBE_VAR}:-}"`,
-    'claude_env_file_value="${CLAUDE_ENV_FILE:-}"',
-    'claude_plugin_root_value="${CLAUDE_PLUGIN_ROOT:-}"',
-    'claude_project_dir_value="${CLAUDE_PROJECT_DIR:-}"',
-    'ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"',
-    'path_has_plugin_bin=false',
-    'if [ -n "$claude_plugin_root_value" ]; then',
-    '  case ":$path_value:" in',
-    '    *:"$claude_plugin_root_value/bin":*) path_has_plugin_bin=true ;;',
-    '  esac',
-    'fi',
-    'if [ "$path_has_plugin_bin" != "true" ]; then',
-    '  case ":$path_value:" in',
-    '    *:*/.remote-plugins/*/bin:*|*:*/cowork_plugins/*/bin:*) path_has_plugin_bin=true ;;',
-    '  esac',
-    'fi',
-    'env_probe_present=false',
-    'if [ -n "$env_probe_value" ]; then',
-    '  env_probe_present=true',
-    'fi',
-    'claude_env_file_set=false',
-    'if [ -n "$claude_env_file_value" ]; then',
-    '  claude_env_file_set=true',
-    'fi',
-    'plugin_root_present=false',
-    'if [ -n "$claude_plugin_root_value" ]; then',
-    '  plugin_root_present=true',
-    'fi',
-    'append_env_dump() {',
-    '  printf \'env_dump<<__SA_MISE_ENV_DUMP__\\n\' >> "$hook_results_log"',
-    '  env | sort >> "$hook_results_log"',
-    '  printf \'__SA_MISE_ENV_DUMP__\\n\' >> "$hook_results_log"',
-    '}',
-    'if',
-    hook.command,
-    'then',
-    `  printf 'ts=%s plugin=%s event=%s hook=%s status=success path_has_plugin_bin=%s env_probe_present=%s claude_env_file_set=%s plugin_root_present=%s path=%s env_probe_value=%s claude_env_file=%s claude_plugin_root=%s claude_project_dir=%s\\n' "$ts" "${pluginName}" "${hook.event}" "${hook.label}" "$path_has_plugin_bin" "$env_probe_present" "$claude_env_file_set" "$plugin_root_present" "$path_value" "$env_probe_value" "$claude_env_file_value" "$claude_plugin_root_value" "$claude_project_dir_value" >> "$hook_results_log"`,
-    '  append_env_dump',
-    'else',
-    '  status=$?',
-    `  printf 'ts=%s plugin=%s event=%s hook=%s status=failure exit_code=%s path_has_plugin_bin=%s env_probe_present=%s claude_env_file_set=%s plugin_root_present=%s path=%s env_probe_value=%s claude_env_file=%s claude_plugin_root=%s claude_project_dir=%s\\n' "$ts" "${pluginName}" "${hook.event}" "${hook.label}" "$status" "$path_has_plugin_bin" "$env_probe_present" "$claude_env_file_set" "$plugin_root_present" "$path_value" "$env_probe_value" "$claude_env_file_value" "$claude_plugin_root_value" "$claude_project_dir_value" >> "$hook_results_log"`,
-    '  append_env_dump',
-    '  exit "$status"',
-    'fi',
-  ].join('\n')
-}
-
 function createPluginJson(plugin: PluginDefinition): string {
   return `${
     JSON.stringify(
@@ -291,45 +193,55 @@ function createPluginJson(plugin: PluginDefinition): string {
   }\n`
 }
 
-function createHooksJson(plugin: PluginDefinition): string {
-  if (!plugin.hooks || plugin.hooks.length === 0) {
-    throw new Error(`Hook fixture requested for ${plugin.name} without hooks`)
+function buildHookCommand(
+  plugin: PluginDefinition,
+  hook: HookDefinition,
+): string {
+  const commands: string[] = []
+
+  if (plugin.hookCommandPrefixScript) {
+    commands.push(
+      `. "\${CLAUDE_PLUGIN_ROOT:-}/${plugin.hookCommandPrefixScript}"`,
+    )
   }
 
+  commands.push(hook.command)
+
+  return commands.join('\n')
+}
+
+function createHooksJson(plugin: PluginDefinition): string {
   const hooksByEvent: Record<
     string,
     Array<{ matcher: string; hooks: Array<{ type: string; command: string }> }>
   > = {}
+
   for (const hook of plugin.hooks) {
     hooksByEvent[hook.event] ??= []
     hooksByEvent[hook.event].push({
       matcher: hook.matcher ?? '',
       hooks: [{
         type: 'command',
-        command: wrapHookCommand(plugin.name, hook),
+        command: buildHookCommand(plugin, hook),
       }],
     })
   }
 
-  return `${
-    JSON.stringify(
-      {
-        hooks: hooksByEvent,
-      },
-      null,
-      2,
-    )
-  }\n`
+  return `${JSON.stringify({ hooks: hooksByEvent }, null, 2)}\n`
 }
 
 function createSkillContent(plugin: PluginDefinition): string {
-  const hookNotes = plugin.hasHookFixture
-    ? `- ${plugin.hookSummary}
-- Shared resolver diagnostics are still captured here for the shim itself:
-  \`\${CLAUDE_PLUGIN_DATA}/state/cowork-plugin-context.env\``
-    : `- This fixture does not include a sample SessionStart hook.
-- Shared resolver diagnostics are captured here:
-  \`\${CLAUDE_PLUGIN_DATA}/state/cowork-plugin-context.env\``
+  const usageNotes = plugin.name === 'sa-mise-user'
+    ? `- This fixture does not ship \`bin/mise\`.
+- Its authored hooks call bare \`mise\`, and generation rewrites them to source
+  \`scripts/resolve-env.sh\` first.
+- \`scripts/resolve-env.sh\` resolves the sibling \`sa-mise\` plugin, exports
+  \`SA_MISE_PLUGIN_ROOT\`, and prepends \`<resolved-sa-mise>/bin\` to \`PATH\`.`
+    : `- This fixture ships the canonical generated \`bin/mise\` shim.
+- The shim keeps a durable local mirror at:
+  \`\${CLAUDE_PLUGIN_DATA}/runtime-mirror/mise/<platform>/\`
+- The active session runtime is shared at:
+  \`<shared-root>/.claude/plugins/shared-runtime/mise/<platform>/\``
 
   return `---
 name: ${plugin.skillName}
@@ -339,39 +251,45 @@ description: ${plugin.skillDescription}
 # ${plugin.skillName}
 
 Use this skill when the user wants to run \`mise\` through the \`${plugin.name}\`
-peer fixture.
+fixture.
 
 ## Command
 
-If the plugin \`bin/\` directory is already on \`PATH\`, run \`mise\` directly:
+${
+    plugin.name === 'sa-mise-user'
+      ? `The authored hook commands assume \`mise\` is already on \`PATH\`:
 
 \`\`\`bash
 mise <args>
 \`\`\`
 
-For a basic availability check:
+During generation, the emitted hooks first source:
 
 \`\`\`bash
-mise --version
+\${CLAUDE_PLUGIN_ROOT}/scripts/resolve-env.sh
 \`\`\`
 
-If \`mise\` is not on \`PATH\`, fall back to the plugin-local shim path:
+and then run the bare \`mise\` command in the enriched environment.`
+      : `If the plugin \`bin/\` directory is already on \`PATH\`, run \`mise\`
+directly:
+
+\`\`\`bash
+mise <args>
+\`\`\`
+
+If \`mise\` is not yet on \`PATH\`, fall back to the plugin-local shim path:
 
 \`\`\`bash
 \${CLAUDE_PLUGIN_ROOT}/bin/mise <args>
-\`\`\`
+\`\`\``
+  }
 
 ## Notes
 
-- This fixture ships the same generated \`bin/mise\` shim as every other
-  \`sa-mise*\` peer plugin in this repo.
-- The shim keeps a durable local mirror at:
-  \`\${CLAUDE_PLUGIN_DATA}/runtime-mirror/mise/<platform>/\`
-- The active session runtime is shared at:
-  \`<shared-root>/.claude/plugins/shared-runtime/mise/<platform>/\`
-- Any peer plugin may run first, recreate the shared symlink, or backfill its
-  own mirror from shared state.
-${hookNotes}
+${usageNotes}
+- ${plugin.hookSummary}
+- Shared resolver diagnostics are still captured here for the shim itself:
+  \`\${CLAUDE_PLUGIN_DATA}/state/cowork-plugin-context.env\`
 `
 }
 
@@ -383,7 +301,7 @@ function createMarketplaceManifest(): string {
         owner: OWNER,
         metadata: {
           description:
-            'Minimal Claude marketplace for exercising fully interchangeable Cowork mise shims',
+            'Minimal Claude marketplace for exercising a canonical Cowork mise owner plugin plus a lightweight sibling consumer plugin.',
           version: VERSION,
         },
         plugins: PEER_PLUGINS.map((plugin) => ({
@@ -413,17 +331,20 @@ async function removeIfExists(path: string): Promise<void> {
 
 async function generatePeerPlugin(plugin: PluginDefinition): Promise<void> {
   const pluginRoot = join(repoRoot, 'plugins', plugin.name)
+  const includedSharedFiles = new Set(plugin.sharedTemplateFiles ?? [])
 
   for (const relativePath of SHARED_TEMPLATE_FILES) {
-    await copySharedTemplate(relativePath, pluginRoot)
+    if (includedSharedFiles.has(relativePath)) {
+      await copySharedTemplate(relativePath, pluginRoot)
+    } else {
+      await removeIfExists(join(pluginRoot, relativePath))
+    }
   }
 
-  if (plugin.hasHookFixture) {
-    await writeFile(
-      join(pluginRoot, 'hooks', 'hooks.json'),
-      createHooksJson(plugin),
-    )
-  }
+  await writeFile(
+    join(pluginRoot, 'hooks', 'hooks.json'),
+    createHooksJson(plugin),
+  )
 
   for (const file of plugin.extraFiles ?? []) {
     await writeFile(
@@ -441,46 +362,32 @@ async function generatePeerPlugin(plugin: PluginDefinition): Promise<void> {
     join(pluginRoot, 'skills', plugin.skillName, 'SKILL.md'),
     createSkillContent(plugin),
   )
-  await removeIfExists(join(pluginRoot, 'scripts', 'runtime-shim.sh'))
-  await removeIfExists(join(pluginRoot, 'hooks', 'session-start.ts'))
-  await removeIfExists(join(pluginRoot, 'hooks', 'session-start.sh'))
-  await removeIfExists(join(pluginRoot, 'scripts', 'session-start-sample.ts'))
-  if (
-    !(plugin.extraFiles ?? []).some((file) =>
-      file.path === 'scripts/find-sa-mise-sibling.sh'
-    )
-  ) {
-    await removeIfExists(join(pluginRoot, 'scripts', 'find-sa-mise-sibling.sh'))
-  }
-  if (
-    !(plugin.extraFiles ?? []).some((file) =>
-      file.path === 'scripts/session-start-sa-mise.sh'
-    )
-  ) {
-    await removeIfExists(
-      join(pluginRoot, 'scripts', 'session-start-sa-mise.sh'),
-    )
-  }
-  if (
-    !(plugin.extraFiles ?? []).some((file) =>
-      file.path === 'scripts/cwd-changed-sa-mise.sh'
-    )
-  ) {
-    await removeIfExists(join(pluginRoot, 'scripts', 'cwd-changed-sa-mise.sh'))
-  }
-  if (
-    !(plugin.extraFiles ?? []).some((file) =>
-      file.path === 'scripts/user-prompt-submit-sa-mise.sh'
-    )
-  ) {
-    await removeIfExists(
-      join(pluginRoot, 'scripts', 'user-prompt-submit-sa-mise.sh'),
-    )
-  }
 
-  if (!plugin.hasHookFixture) {
-    await removeIfExists(join(pluginRoot, 'hooks'))
+  const expectedExtraFiles = new Set(
+    (plugin.extraFiles ?? []).map((file) => file.path),
+  )
+  const removableFiles = [
+    'scripts/runtime-shim.sh',
+    'hooks/session-start.ts',
+    'hooks/session-start.sh',
+    'scripts/session-start-sample.ts',
+    'scripts/find-sa-mise-sibling.sh',
+    'scripts/session-start-sa-mise.sh',
+    'scripts/cwd-changed-sa-mise.sh',
+    'scripts/user-prompt-submit-sa-mise.sh',
+    'hooks/reply-sir.sh',
+    'scripts/resolve-env.sh',
+  ]
+
+  for (const relativePath of removableFiles) {
+    if (!expectedExtraFiles.has(relativePath)) {
+      await removeIfExists(join(pluginRoot, relativePath))
+    }
   }
+}
+
+for (const obsoletePlugin of OBSOLETE_PLUGIN_DIRS) {
+  await removeIfExists(join(repoRoot, 'plugins', obsoletePlugin))
 }
 
 for (const plugin of PEER_PLUGINS) {

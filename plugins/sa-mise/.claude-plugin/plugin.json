@@ -1,7 +1,7 @@
 {
   "name": "sa-mise",
   "version": "1.0.0",
-  "description": "Primary peer Cowork fixture whose SessionStart hook invokes the local mise shim through ${CLAUDE_PLUGIN_ROOT}/bin/mise",
+  "description": "Canonical Cowork fixture that owns the generated mise shim, shared runtime bootstrap flow, and SessionStart prompt injection.",
   "author": {
     "name": "Vladimir Semashko"
   }

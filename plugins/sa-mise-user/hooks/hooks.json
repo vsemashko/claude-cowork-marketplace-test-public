@@ -1,0 +1,15 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "matcher": "",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ". \"${CLAUDE_PLUGIN_ROOT:-}/scripts/resolve-env.sh\"\nmise exec deno@latest -- deno eval 'Deno.exit(0)' >/dev/null 2>&1"
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -1,24 +1,22 @@
 # sa-mise Marketplace
 
-This repository is a minimal Claude/Cowork test bundle with two surfaces:
+This repository is a minimal Claude/Cowork test bundle with two marketplace
+plugins and one separately packaged MCPB bundle:
 
-- three peer marketplace plugins that all ship the same generated `mise` shim:
-  - `sa-mise`
-  - `sa-mise-session-start-a`
-  - `sa-mise-session-start-b`
-  - `sa-mise-session-start-c`
-- `sa-cowork-config-mcp`, a separately packaged MCPB extension for config
-  handling tests
+- `sa-mise`: the canonical owner of the generated `mise` shim and shared runtime
+  bootstrap logic
+- `sa-mise-user`: a lightweight consumer plugin with no own `bin/mise`; its
+  authored hooks use bare `mise`, and generation rewrites those hooks to resolve
+  the sibling `sa-mise` plugin first
+- `sa-cowork-config-mcp`: a separate MCPB extension for config handling tests
 
-The plugin intentionally does not package `stash`, `stashaway-agents`, a public
-`deno` shim, or any StashAway-private download logic.
+The plugin bundle intentionally does not package `stash`, `stashaway-agents`, a
+public `deno` shim, or any StashAway-private download logic.
 
 ## Included Plugins
 
 - `sa-mise`
-- `sa-mise-session-start-a`
-- `sa-mise-session-start-b`
-- `sa-mise-session-start-c`
+- `sa-mise-user`
 
 ## Included MCPB Bundle
 
@@ -31,9 +29,7 @@ Add this repo as a marketplace source in Claude:
 - Repository: `vsemashko/claude-cowork-marketplace-test-public`
 - Marketplace plugins:
   - `sa-mise`
-  - `sa-mise-session-start-a`
-  - `sa-mise-session-start-b`
-  - `sa-mise-session-start-c`
+  - `sa-mise-user`
 
 The config MCPB is packaged separately and is not installed through the
 marketplace manifest.
@@ -55,102 +51,88 @@ Then install `dist/sa-cowork-config-mcp.mcpb` in Claude Desktop and configure:
 - `dd_site`
 - `gitlab_token`
 
-## What The Peer Plugins Do
+## What The Plugins Do
 
-- `deno task generate` stamps identical shared shim assets into all three peer
-  plugins from one source template
-- every peer ships the same committed shim at `${CLAUDE_PLUGIN_ROOT}/bin/mise`
+- `deno task generate` stamps the generated peer fixtures from one source
+  script.
+- `sa-mise` ships the canonical committed shim at
+  `${CLAUDE_PLUGIN_ROOT}/bin/mise`.
 - Cowork may provide `${CLAUDE_COWORK_SHARED_ROOT}` to pin the shared-runtime
-  base path explicitly
-- each plugin keeps a durable local mirror at:
-  `${CLAUDE_PLUGIN_DATA}/runtime-mirror/mise/${platform}/`
-- all peers converge on the same shared session runtime at:
-  `<shared-root>/.claude/plugins/shared-runtime/mise/${platform}/current/mise`
-- any plugin may execute first, recreate the shared symlink, or backfill its own
-  local mirror from the shared runtime
-- shared registry state is stored at:
-  `<shared-root>/.claude/plugins/shared-runtime/mise/${platform}/registry.json`
-- shared resolver diagnostics are captured in:
-  `${CLAUDE_PLUGIN_DATA}/state/cowork-plugin-context.env`
-- the runtime installs the latest official `mise` binary on first use
-- runtime files never write into `${HOME}`
-- all peer fixtures register minimal hooks in `hooks/hooks.json`
-- `sa-mise` also appends an idempotent PATH export plus a dedicated probe env
-  var to `CLAUDE_ENV_FILE` so later hooks and Bash commands can prove session
-  env visibility
-- the peer hooks intentionally exercise different lookup paths:
-  - `sa-mise` invokes `${CLAUDE_PLUGIN_ROOT}/bin/mise` directly on
-    `SessionStart` and later checks same-plugin env visibility on
-    `UserPromptSubmit`
-  - `sa-mise-session-start-a` prepends `${CLAUDE_PLUGIN_ROOT}/bin` to `PATH` and
-    then invokes bare `mise`
-  - `sa-mise-session-start-b` resolves the sibling `sa-mise` plugin through a
-    small helper script and invokes its `bin/mise` directly with no fallback
-  - `sa-mise-session-start-c` runs on `UserPromptSubmit`, does not source
-    `CLAUDE_ENV_FILE`, and uses two separate probes so later hooks can verify
-    inherited arbitrary env visibility and bare `mise` resolution independently
-- the hooks are intentionally quiet now: they only execute the runtime probe and
-  rely on the command exit status for success or failure
-- `CLAUDE_ENV_FILE` should be treated as the source of persisted session env;
-  `sa-mise` and `sa-mise-session-start-c` probe whether that env becomes visible
-  to later hook processes as well
-- every hook command appends one compact result line to:
-  `${CLAUDE_PROJECT_DIR}/.sa-mise-hook-results.log` with `ts`, `plugin`,
-  `event`, `hook`, `status`, targeted env visibility flags, and the related
-  `PATH` / Claude env values needed to correlate what each hook actually saw and
-  then appends a full sorted `env` block for that specific hook execution
+  base path explicitly.
+- `sa-mise` keeps a durable local mirror at:
+  `${CLAUDE_PLUGIN_DATA}/runtime-mirror/mise/${platform}/`.
+- The active session runtime is shared at:
+  `<shared-root>/.claude/plugins/shared-runtime/mise/${platform}/current/mise`.
+- Shared registry state is stored at:
+  `<shared-root>/.claude/plugins/shared-runtime/mise/${platform}/registry.json`.
+- Shared resolver diagnostics are captured in:
+  `${CLAUDE_PLUGIN_DATA}/state/cowork-plugin-context.env`.
+- The runtime installs the latest official `mise` binary on first use.
+- Runtime files never write into `${HOME}`.
+- `sa-mise` registers two `SessionStart` hooks:
+  - a runtime hook that calls its own `${CLAUDE_PLUGIN_ROOT}/bin/mise`
+  - a prompt/context hook that injects the instruction to always reply with
+    `, sir`
+- `sa-mise-user` does not ship `bin/mise`.
+- `sa-mise-user` ships `scripts/resolve-env.sh`, whose only job is to:
+  - find the sibling `sa-mise` plugin
+  - prepend `<resolved-sa-mise>/bin` to `PATH`
+  - export `SA_MISE_PLUGIN_ROOT`
+  - fail clearly if the sibling owner plugin cannot be found
+- The authored `sa-mise-user` hooks stay simple and assume bare `mise` is
+  already available.
+- During generation, every `sa-mise-user` command hook is rewritten to:
+  - source `${CLAUDE_PLUGIN_ROOT}/scripts/resolve-env.sh`
+  - run the original authored bare `mise` command in the enriched environment
 
-## Skill
+## Skills
 
 Each plugin exposes one minimal skill matching its plugin name:
 
 - `sa-mise`
-- `sa-mise-session-start-a`
-- `sa-mise-session-start-b`
-- `sa-mise-session-start-c`
+- `sa-mise-user`
 
-If Claude has already put the active plugin `bin/` directory on `PATH`, use
-`mise` directly:
+For `sa-mise`, if the plugin `bin/` directory is already on `PATH`, run `mise`
+directly:
 
 ```bash
 mise --version
 ```
 
-Or any other `mise` command:
-
-```bash
-mise <args>
-```
-
-If `mise` is not yet on `PATH`, the fallback is the plugin-local shim path:
+Or use the plugin-local shim explicitly:
 
 ```bash
 ${CLAUDE_PLUGIN_ROOT}/bin/mise --version
 ```
+
+For `sa-mise-user`, the authored commands are just bare `mise`:
+
+```bash
+mise --version
+```
+
+The emitted hook commands source `scripts/resolve-env.sh` first so the sibling
+`sa-mise` binary becomes available on `PATH`.
 
 ## Manual Acceptance
 
 1. Install the marketplace from this GitHub repo.
 2. Open a Claude plugin shell on a platform supported by the official `mise`
    installer.
-3. Run `mise --version`. If `mise` is not yet on `PATH`, use
-   `${CLAUDE_PLUGIN_ROOT}/bin/mise --version`.
-4. Verify the command succeeds and creates:
+3. Install both `sa-mise` and `sa-mise-user`.
+4. Trigger `SessionStart` and verify `sa-mise`:
+   - succeeds through `${CLAUDE_PLUGIN_ROOT}/bin/mise`
+   - emits the prompt/context instruction to always reply with `, sir`
+5. Trigger `SessionStart` for `sa-mise-user` and verify its hook succeeds even
+   though the plugin does not ship `bin/mise`.
+6. Confirm `sa-mise-user` resolves the sibling owner plugin and exposes bare
+   `mise` by sourcing `scripts/resolve-env.sh`.
+7. Verify the command succeeds and creates:
    - `${CLAUDE_PLUGIN_DATA}/runtime-mirror/mise/${platform}/bin/mise`
    - `<shared-root>/.claude/plugins/shared-runtime/mise/${platform}/current/mise`
    - `<shared-root>/.claude/plugins/shared-runtime/mise/${platform}/registry.json`
    - `${CLAUDE_PLUGIN_DATA}/runtime-mirror/mise/${platform}/install-status.env`
    - `${CLAUDE_PLUGIN_DATA}/state/cowork-plugin-context.env`
-5. Trigger SessionStart and verify `sa-mise` writes both a PATH export and a
-   probe env var into `CLAUDE_ENV_FILE`.
-6. Run a later Bash command and verify bare `mise` resolves through that
-   exported PATH and the probe env var is present.
-7. Trigger `UserPromptSubmit` and verify `sa-mise` logs a same-plugin env probe
-   while `sa-mise-session-start-c` logs both the inherited env probe and the
-   bare `mise` path probe, without sourcing `CLAUDE_ENV_FILE`.
-8. Inspect `${CLAUDE_PROJECT_DIR}/.sa-mise-hook-results.log` to confirm which
-   hook probe succeeded or failed, then inspect the appended `env_dump` block to
-   see the full environment that hook actually saw.
 
 ## Shared Resolver State
 
@@ -165,5 +147,6 @@ bootstrap behavior.
 
 ```bash
 mise exec -- deno task generate
+mise exec -- deno lint
 mise exec -- deno test --allow-all
 ```
