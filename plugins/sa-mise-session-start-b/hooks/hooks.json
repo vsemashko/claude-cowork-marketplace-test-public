@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "plugin_parent=\"$(dirname \"${CLAUDE_PLUGIN_ROOT:-.}\")\"\nfor sibling_plugin_root in \"$plugin_parent\"/*; do\n  [ -d \"$sibling_plugin_root\" ] || continue\n  sibling_metadata=\"$sibling_plugin_root/.claude-plugin/plugin.json\"\n  [ -f \"$sibling_metadata\" ] || continue\n  sibling_name=\"$(sed -n 's/^[[:space:]]*\"name\"[[:space:]]*:[[:space:]]*\"\\([^\"]*\\)\".*$/\\1/p' \"$sibling_metadata\" | head -n 1)\"\n  if [ \"$sibling_name\" = \"sa-mise\" ]; then\n    \"$sibling_plugin_root/bin/mise\" exec deno@latest -- deno eval 'Deno.exit(0)'\n    exit 0\n  fi\ndone\necho \"sa-mise plugin not found\" >&2\nexit 1"
+            "command": "sibling_root=\"$(\"${CLAUDE_PLUGIN_ROOT:-}/scripts/find-sa-mise-sibling.sh\")\"\n\"$sibling_root/bin/mise\" exec deno@latest -- deno eval 'Deno.exit(0)'"
           }
         ]
       }

@@ -41,6 +41,17 @@
         "name": "Vladimir Semashko",
         "email": "vsemashko@gmail.com"
       }
+    },
+    {
+      "name": "sa-mise-session-start-c",
+      "description": "Peer Cowork fixture whose SessionStart hook relies on PATH exported by sa-mise through CLAUDE_ENV_FILE",
+      "version": "1.0.0",
+      "category": "core",
+      "source": "./plugins/sa-mise-session-start-c",
+      "author": {
+        "name": "Vladimir Semashko",
+        "email": "vsemashko@gmail.com"
+      }
     }
   ]
 }

@@ -8,6 +8,7 @@ type PluginDefinition = {
   skillDescription: string
   hasHookFixture: boolean
   sessionStartCommand?: string
+  extraFiles?: Array<{ path: string; content: string; executable?: boolean }>
 }
 
 const VERSION = '1.0.0'
@@ -25,8 +26,14 @@ const PEER_PLUGINS: PluginDefinition[] = [
     skillDescription:
       'Run the generated peer-safe mise shim exposed by this marketplace fixture.',
     hasHookFixture: true,
-    sessionStartCommand:
+    sessionStartCommand: [
+      'sa_mise_bin="${CLAUDE_PLUGIN_ROOT:-}/bin"',
+      'if [ -n "${CLAUDE_ENV_FILE:-}" ]; then',
+      '  mkdir -p "$(dirname "$CLAUDE_ENV_FILE")"',
+      `  printf 'case ":$PATH:" in\n*:%s:*) ;;\n*) export PATH="%s:$PATH" ;;\nesac\n' "$sa_mise_bin" "$sa_mise_bin" >> "$CLAUDE_ENV_FILE"`,
+      'fi',
       '"${CLAUDE_PLUGIN_ROOT:-}/bin/mise" exec deno@latest -- deno eval \'Deno.exit(0)\'',
+    ].join('\n'),
   },
   {
     name: 'sa-mise-session-start-a',
@@ -48,20 +55,48 @@ const PEER_PLUGINS: PluginDefinition[] = [
       'Run the generated peer-safe mise shim exposed by SessionStart hook fixture B.',
     hasHookFixture: true,
     sessionStartCommand: [
-      'plugin_parent="$(dirname "${CLAUDE_PLUGIN_ROOT:-.}")"',
-      'for sibling_plugin_root in "$plugin_parent"/*; do',
-      '  [ -d "$sibling_plugin_root" ] || continue',
-      '  sibling_metadata="$sibling_plugin_root/.claude-plugin/plugin.json"',
-      '  [ -f "$sibling_metadata" ] || continue',
-      `  sibling_name="$(sed -n 's/^[[:space:]]*"name"[[:space:]]*:[[:space:]]*"\\([^"]*\\)".*$/\\1/p' "$sibling_metadata" | head -n 1)"`,
-      '  if [ "$sibling_name" = "sa-mise" ]; then',
-      '    "$sibling_plugin_root/bin/mise" exec deno@latest -- deno eval \'Deno.exit(0)\'',
-      '    exit 0',
-      '  fi',
-      'done',
-      'echo "sa-mise plugin not found" >&2',
-      'exit 1',
+      'sibling_root="$("${CLAUDE_PLUGIN_ROOT:-}/scripts/find-sa-mise-sibling.sh")"',
+      '"$sibling_root/bin/mise" exec deno@latest -- deno eval \'Deno.exit(0)\'',
     ].join('\n'),
+    extraFiles: [
+      {
+        path: 'scripts/find-sa-mise-sibling.sh',
+        executable: true,
+        content: [
+          '#!/bin/sh',
+          '',
+          'set -eu',
+          '',
+          'plugin_root="${CLAUDE_PLUGIN_ROOT:-}"',
+          '[ -n "$plugin_root" ] || { echo "CLAUDE_PLUGIN_ROOT is required" >&2; exit 1; }',
+          '',
+          'plugin_parent="$(dirname "$plugin_root")"',
+          'for sibling_plugin_root in "$plugin_parent"/*; do',
+          '  [ -d "$sibling_plugin_root" ] || continue',
+          '  sibling_metadata="$sibling_plugin_root/.claude-plugin/plugin.json"',
+          '  [ -f "$sibling_metadata" ] || continue',
+          `  sibling_name="$(sed -n 's/^[[:space:]]*"name"[[:space:]]*:[[:space:]]*"\\([^"]*\\)".*$/\\1/p' "$sibling_metadata" | head -n 1)"`,
+          '  if [ "$sibling_name" = "sa-mise" ]; then',
+          '    printf "%s\\n" "$sibling_plugin_root"',
+          '    exit 0',
+          '  fi',
+          'done',
+          '',
+          'echo "sa-mise plugin not found" >&2',
+          'exit 1',
+        ].join('\n'),
+      },
+    ],
+  },
+  {
+    name: 'sa-mise-session-start-c',
+    description:
+      'Peer Cowork fixture whose SessionStart hook relies on PATH exported by sa-mise through CLAUDE_ENV_FILE',
+    skillName: 'sa-mise-session-start-c',
+    skillDescription:
+      'Run the generated peer-safe mise shim exposed by SessionStart hook fixture C.',
+    hasHookFixture: true,
+    sessionStartCommand: "mise exec deno@latest -- deno eval 'Deno.exit(0)'",
   },
 ]
 
@@ -263,6 +298,14 @@ async function generatePeerPlugin(plugin: PluginDefinition): Promise<void> {
     )
   }
 
+  for (const file of plugin.extraFiles ?? []) {
+    await writeFile(
+      join(pluginRoot, file.path),
+      `${file.content}\n`,
+      file.executable,
+    )
+  }
+
   await writeFile(
     join(pluginRoot, '.claude-plugin', 'plugin.json'),
     createPluginJson(plugin),
@@ -275,6 +318,13 @@ async function generatePeerPlugin(plugin: PluginDefinition): Promise<void> {
   await removeIfExists(join(pluginRoot, 'hooks', 'session-start.ts'))
   await removeIfExists(join(pluginRoot, 'hooks', 'session-start.sh'))
   await removeIfExists(join(pluginRoot, 'scripts', 'session-start-sample.ts'))
+  if (
+    !(plugin.extraFiles ?? []).some((file) =>
+      file.path === 'scripts/find-sa-mise-sibling.sh'
+    )
+  ) {
+    await removeIfExists(join(pluginRoot, 'scripts', 'find-sa-mise-sibling.sh'))
+  }
 
   if (!plugin.hasHookFixture) {
     await removeIfExists(join(pluginRoot, 'hooks'))

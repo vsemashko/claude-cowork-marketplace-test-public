@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT:-}/bin/mise\" exec deno@latest -- deno eval 'Deno.exit(0)'"
+            "command": "sa_mise_bin=\"${CLAUDE_PLUGIN_ROOT:-}/bin\"\nif [ -n \"${CLAUDE_ENV_FILE:-}\" ]; then\n  mkdir -p \"$(dirname \"$CLAUDE_ENV_FILE\")\"\n  printf 'case \":$PATH:\" in\n*:%s:*) ;;\n*) export PATH=\"%s:$PATH\" ;;\nesac\n' \"$sa_mise_bin\" \"$sa_mise_bin\" >> \"$CLAUDE_ENV_FILE\"\nfi\n\"${CLAUDE_PLUGIN_ROOT:-}/bin/mise\" exec deno@latest -- deno eval 'Deno.exit(0)'"
           }
         ]
       }

@@ -6,6 +6,7 @@ const PEER_PLUGIN_NAMES = [
   'sa-mise',
   'sa-mise-session-start-a',
   'sa-mise-session-start-b',
+  'sa-mise-session-start-c',
 ] as const
 
 const REPO_ROOT = Deno.cwd()
@@ -70,6 +71,10 @@ Deno.test('peer plugins ship identical generated shims and shared helpers', asyn
     assertEquals(
       await exists(join(pluginRoot, 'scripts', 'cowork-plugin-context.sh')),
       true,
+    )
+    assertEquals(
+      await exists(join(pluginRoot, 'scripts', 'find-sa-mise-sibling.sh')),
+      pluginName === 'sa-mise-session-start-b',
     )
     assertEquals(
       await exists(join(pluginRoot, 'scripts', 'session-start-sample.ts')),
@@ -159,6 +164,10 @@ Deno.test('peer plugins ship identical generated shims and shared helpers', asyn
     true,
   )
   assertEquals(
+    hookCommands['sa-mise'].includes('CLAUDE_ENV_FILE'),
+    true,
+  )
+  assertEquals(
     hookCommands['sa-mise-session-start-a'].includes(
       'PATH="${CLAUDE_PLUGIN_ROOT:-}/bin:${PATH}"',
     ),
@@ -166,12 +175,18 @@ Deno.test('peer plugins ship identical generated shims and shared helpers', asyn
   )
   assertEquals(
     hookCommands['sa-mise-session-start-b'].includes(
-      'sa-mise plugin not found',
+      'find-sa-mise-sibling.sh',
     ),
     true,
   )
   assertEquals(
     hookCommands['sa-mise-session-start-b'].includes('plugin_parent='),
+    false,
+  )
+  assertEquals(
+    hookCommands['sa-mise-session-start-c'].includes(
+      'mise exec deno@latest -- deno eval',
+    ),
     true,
   )
   assertEquals(
@@ -185,6 +200,11 @@ Deno.test('peer plugins ship identical generated shims and shared helpers', asyn
   )
   assertEquals(
     hookCommands['sa-mise'] === hookCommands['sa-mise-session-start-b'],
+    false,
+  )
+  assertEquals(
+    hookCommands['sa-mise-session-start-b'] ===
+      hookCommands['sa-mise-session-start-c'],
     false,
   )
 })

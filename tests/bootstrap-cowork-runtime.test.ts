@@ -15,6 +15,7 @@ const PEER_PLUGIN_NAMES = [
   'sa-mise',
   'sa-mise-session-start-a',
   'sa-mise-session-start-b',
+  'sa-mise-session-start-c',
 ] as const
 
 type PluginName = (typeof PEER_PLUGIN_NAMES)[number]
@@ -79,6 +80,20 @@ async function createPluginFixture(
     await copyFileWithMode(
       join(REPO_ROOT, 'plugins', pluginName, relativePath),
       join(pluginRoot, relativePath),
+    )
+  }
+
+  const siblingFinderPath = join(
+    REPO_ROOT,
+    'plugins',
+    pluginName,
+    'scripts',
+    'find-sa-mise-sibling.sh',
+  )
+  if (await exists(siblingFinderPath)) {
+    await copyFileWithMode(
+      siblingFinderPath,
+      join(pluginRoot, 'scripts', 'find-sa-mise-sibling.sh'),
     )
   }
 
@@ -334,7 +349,13 @@ async function runSessionStartHook(
   env: Record<string, string>,
 ) {
   const hookCommand = await readSessionStartCommand(pluginRoot)
-  return await runCommand('sh', ['-eu', '-c', hookCommand], {
+  const wrappedCommand = [
+    'if [ -n "${CLAUDE_ENV_FILE:-}" ] && [ -f "${CLAUDE_ENV_FILE}" ]; then',
+    '  . "${CLAUDE_ENV_FILE}"',
+    'fi',
+    hookCommand,
+  ].join('\n')
+  return await runCommand('sh', ['-eu', '-c', wrappedCommand], {
     ...env,
     CLAUDE_PLUGIN_ROOT: pluginRoot,
   }, HOOK_INPUT_PAYLOAD)
@@ -744,6 +765,7 @@ Deno.test('all peer SessionStart hooks execute successfully', async () => {
       'sa-mise': firstFixture.pluginRoot,
     }
     const sharedRoot = sharedRootFromPluginRoot(firstFixture.pluginRoot)
+    const sessionEnvFile = join(baseDir, 'claude-env', 'session.env')
 
     for (const pluginName of PEER_PLUGIN_NAMES) {
       const { pluginRoot } = pluginName === 'sa-mise'
@@ -757,6 +779,7 @@ Deno.test('all peer SessionStart hooks execute successfully', async () => {
         mockBinDir,
         sharedRoot,
       )
+      env.CLAUDE_ENV_FILE = sessionEnvFile
 
       const hookResult = await runSessionStartHook(pluginRoot, env)
 
@@ -764,6 +787,10 @@ Deno.test('all peer SessionStart hooks execute successfully', async () => {
     }
 
     assertEquals(await exists(sharedRuntimeBinaryPath(sharedRoot)), true)
+    assertStringIncludes(
+      await Deno.readTextFile(sessionEnvFile),
+      `export PATH="${join(firstFixture.pluginRoot, 'bin')}:$PATH"`,
+    )
     assertEquals(
       (await Deno.readTextFile(downloadLogPath)).trim().split('\n').length,
       1,
@@ -798,6 +825,76 @@ Deno.test('sa-mise-session-start-b fails clearly when the sibling sa-mise plugin
 
     assertEquals(hookResult.success, false)
     assertStringIncludes(stderr, 'sa-mise plugin not found')
+  } finally {
+    await Deno.remove(baseDir, { recursive: true })
+  }
+})
+
+Deno.test('sa-mise writes PATH export to CLAUDE_ENV_FILE and session-start-c relies on it', async () => {
+  const baseDir = await Deno.makeTempDir()
+
+  try {
+    const saMiseFixture = await createPluginFixture(
+      baseDir,
+      'session',
+      'sa-mise',
+    )
+    const fixtureC = await createPluginFixture(
+      baseDir,
+      'session',
+      'sa-mise-session-start-c',
+    )
+    const { downloadLogPath, mockBinDir } = await createMockTooling(baseDir)
+    const sharedRoot = sharedRootFromPluginRoot(saMiseFixture.pluginRoot)
+    const sessionEnvFile = join(baseDir, 'claude-env', 'session.env')
+
+    const envC = createEnv(
+      baseDir,
+      'sa-mise-session-start-c',
+      downloadLogPath,
+      mockBinDir,
+      sharedRoot,
+    )
+    envC.CLAUDE_ENV_FILE = sessionEnvFile
+
+    const hookResultBefore = await runCommand(
+      'sh',
+      ['-eu', '-c', await readSessionStartCommand(fixtureC.pluginRoot)],
+      {
+        ...envC,
+        CLAUDE_PLUGIN_ROOT: fixtureC.pluginRoot,
+      },
+      HOOK_INPUT_PAYLOAD,
+    )
+
+    assertEquals(hookResultBefore.success, false)
+
+    const envSaMise = createEnv(
+      baseDir,
+      'sa-mise',
+      downloadLogPath,
+      mockBinDir,
+      sharedRoot,
+    )
+    envSaMise.CLAUDE_ENV_FILE = sessionEnvFile
+
+    const saMiseHookResult = await runSessionStartHook(
+      saMiseFixture.pluginRoot,
+      envSaMise,
+    )
+
+    assertEquals(saMiseHookResult.success, true)
+    assertStringIncludes(
+      await Deno.readTextFile(sessionEnvFile),
+      `export PATH="${join(saMiseFixture.pluginRoot, 'bin')}:$PATH"`,
+    )
+
+    const hookResultAfter = await runSessionStartHook(
+      fixtureC.pluginRoot,
+      envC,
+    )
+
+    assertEquals(hookResultAfter.success, true)
   } finally {
     await Deno.remove(baseDir, { recursive: true })
   }
