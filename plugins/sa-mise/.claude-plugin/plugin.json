@@ -4,6 +4,5 @@
   "description": "Primary peer Cowork fixture that bootstraps and shares the latest mise binary through the generated shared shim",
   "author": {
     "name": "Vladimir Semashko"
-  },
-  "hooks": "./hooks/hooks.json"
+  }
 }

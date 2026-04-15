@@ -55,7 +55,7 @@ Deno.test('peer plugins ship identical generated shims and shared helpers', asyn
       true,
     )
     assertEquals(pluginConfig.name, pluginName)
-    assertEquals(pluginConfig.hooks, './hooks/hooks.json')
+    assertEquals(pluginConfig.hooks, undefined)
     assertEquals(await exists(join(pluginRoot, 'bin', 'mise')), true)
     assertEquals(
       await exists(join(pluginRoot, 'scripts', 'cowork-shared-runtime.sh')),

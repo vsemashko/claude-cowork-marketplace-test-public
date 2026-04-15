@@ -102,7 +102,6 @@ function createPluginJson(plugin: PluginDefinition): string {
         author: {
           name: OWNER.name,
         },
-        ...(plugin.hasHookFixture ? { hooks: './hooks/hooks.json' } : {}),
       },
       null,
       2,
