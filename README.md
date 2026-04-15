@@ -71,21 +71,16 @@ Then install `dist/sa-cowork-config-mcp.mcpb` in Claude Desktop and configure:
   `${CLAUDE_PLUGIN_DATA}/state/cowork-plugin-context.env`
 - the runtime installs the latest official `mise` binary on first use
 - runtime files never write into `${HOME}`
-- all three peer fixtures now register inline SessionStart hooks in
-  `hooks/hooks.json` and append to one shared home log at:
-  `~/.sa-mise-session-start.log`
-- the three peer hooks intentionally use different lookup strategies:
+- all three peer fixtures register minimal inline SessionStart hooks in
+  `hooks/hooks.json`
+- the three peer hooks intentionally exercise different lookup paths:
   - `sa-mise` invokes `${CLAUDE_PLUGIN_ROOT}/bin/mise` directly
   - `sa-mise-session-start-a` prepends `${CLAUDE_PLUGIN_ROOT}/bin` to `PATH` and
     then invokes bare `mise`
   - `sa-mise-session-start-b` resolves the sibling `sa-mise` plugin and invokes
     its `bin/mise` directly with no fallback
-- the inline hook commands emit plugin name, strategy, `mise` version, `deno`
-  version, the raw hook stdin payload, and a full environment dump so the shared
-  trace log explains why a hook succeeded or failed
-- the hooks log `CLAUDE_ENV_FILE` when Claude provides it, but they do not write
-  exports into that file in this fixture; the goal is to observe startup
-  behavior, not normalize it
+- the hooks are intentionally quiet now: they only execute the runtime probe and
+  rely on the command exit status for success or failure
 
 ## Skill
 
@@ -130,30 +125,7 @@ ${CLAUDE_PLUGIN_ROOT}/bin/mise --version
 5. Trigger SessionStart from any of the three peer fixtures and verify
    `~/.sa-mise-session-start.log` is written.
 
-## Where To Check Hook Logs
-
-All three peer fixtures append to one shared hook log:
-
-- append-only hook log: `~/.sa-mise-session-start.log`
-
-The log file is intentionally verbose. It records:
-
-- `timestamp`
-- `hook_strategy`
-- `hook_status`
-- `plugin_name`
-- `sample_name`
-- `attempted_command`
-- `attempted_binary_path`
-- `resolved_cross_plugin_root`
-- `PATH_before_strategy`
-- `PATH_after_strategy`
-- `command_v_mise_before_strategy`
-- `command_v_mise_after_strategy`
-- `hook_input`
-- `env_dump`
-- `mise_version`
-- `deno_version`
+## Shared Resolver State
 
 The shim still captures shared resolver state separately in:
 

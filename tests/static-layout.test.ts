@@ -139,14 +139,18 @@ Deno.test('peer plugins ship identical generated shims and shared helpers', asyn
       sessionStartCommand.includes('session-start-sample.ts'),
       false,
     )
-    assertEquals(sessionStartCommand.includes('hook_strategy='), true)
+    assertEquals(sessionStartCommand.includes('hook_strategy='), false)
     assertEquals(
       sessionStartCommand.includes('env_dump<<__SA_MISE_ENV_DUMP__'),
-      true,
+      false,
     )
     assertEquals(
       sessionStartCommand.includes('hook_input<<__SA_MISE_HOOK_INPUT__'),
-      true,
+      false,
+    )
+    assertEquals(
+      sessionStartCommand.includes('.sa-mise-session-start.log'),
+      false,
     )
   }
 
@@ -167,9 +171,7 @@ Deno.test('peer plugins ship identical generated shims and shared helpers', asyn
     true,
   )
   assertEquals(
-    hookCommands['sa-mise-session-start-b'].includes(
-      'resolved_cross_plugin_root',
-    ),
+    hookCommands['sa-mise-session-start-b'].includes('plugin_parent='),
     true,
   )
   assertEquals(

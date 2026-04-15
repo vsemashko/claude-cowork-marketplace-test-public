@@ -265,10 +265,6 @@ function contextHelperPath(pluginRoot: string): string {
   return join(pluginRoot, 'scripts', 'cowork-plugin-context.sh')
 }
 
-function sharedHookLogPath(homeRoot: string): string {
-  return join(homeRoot, '.sa-mise-session-start.log')
-}
-
 async function readSessionStartCommand(pluginRoot: string): Promise<string> {
   const hooksConfig = JSON.parse(
     await Deno.readTextFile(join(pluginRoot, 'hooks', 'hooks.json')),
@@ -734,7 +730,7 @@ Deno.test('broken shared runtime is repaired from another peer mirror and stale 
   }
 })
 
-Deno.test('all peer SessionStart hooks append sample output to the shared home log', async () => {
+Deno.test('all peer SessionStart hooks execute successfully', async () => {
   const baseDir = await Deno.makeTempDir()
 
   try {
@@ -748,7 +744,6 @@ Deno.test('all peer SessionStart hooks append sample output to the shared home l
       'sa-mise': firstFixture.pluginRoot,
     }
     const sharedRoot = sharedRootFromPluginRoot(firstFixture.pluginRoot)
-    const sharedLog = sharedHookLogPath(join(baseDir, 'home'))
 
     for (const pluginName of PEER_PLUGIN_NAMES) {
       const { pluginRoot } = pluginName === 'sa-mise'
@@ -768,59 +763,11 @@ Deno.test('all peer SessionStart hooks append sample output to the shared home l
       assertEquals(hookResult.success, true)
     }
 
-    const logContents = await Deno.readTextFile(sharedLog)
-
-    assertEquals(await exists(sharedLog), true)
-    assertStringIncludes(logContents, 'hook_status=success')
-    assertStringIncludes(logContents, 'plugin_name=sa-mise')
-    assertStringIncludes(logContents, 'hook_strategy=direct-plugin-root')
-    assertStringIncludes(logContents, 'sample_name=sa-mise-session-start')
-    assertStringIncludes(
-      logContents,
-      `attempted_binary_path=${join(firstFixture.pluginRoot, 'bin', 'mise')}`,
+    assertEquals(await exists(sharedRuntimeBinaryPath(sharedRoot)), true)
+    assertEquals(
+      (await Deno.readTextFile(downloadLogPath)).trim().split('\n').length,
+      1,
     )
-    assertStringIncludes(logContents, 'plugin_name=sa-mise-session-start-a')
-    assertStringIncludes(logContents, 'hook_strategy=path-prepend')
-    assertStringIncludes(
-      logContents,
-      'sample_name=sa-mise-session-start-a-session-start',
-    )
-    assertStringIncludes(
-      logContents,
-      `PATH_after_strategy=${
-        join(
-          fixtureRoots['sa-mise-session-start-a']!,
-          'bin',
-        )
-      }:`,
-    )
-    assertStringIncludes(logContents, 'plugin_name=sa-mise-session-start-b')
-    assertStringIncludes(logContents, 'hook_strategy=cross-plugin-sa-mise')
-    assertStringIncludes(
-      logContents,
-      'sample_name=sa-mise-session-start-b-session-start',
-    )
-    assertStringIncludes(
-      logContents,
-      `resolved_cross_plugin_root=${fixtureRoots['sa-mise']!}`,
-    )
-    assertStringIncludes(logContents, 'mise_version=mise latest test')
-    assertStringIncludes(logContents, 'deno_version=')
-    assertStringIncludes(logContents, 'hook_input<<__SA_MISE_HOOK_INPUT__')
-    assertStringIncludes(logContents, HOOK_INPUT_PAYLOAD)
-    assertStringIncludes(logContents, 'env_dump<<__SA_MISE_ENV_DUMP__')
-    assertStringIncludes(logContents, 'CLAUDE_ENV_FILE=')
-    assertStringIncludes(logContents, 'CLAUDE_PROJECT_DIR=')
-    assertStringIncludes(logContents, 'CLAUDE_CODE_REMOTE=1')
-    assertStringIncludes(logContents, 'PATH_before_strategy=')
-    assertStringIncludes(logContents, 'PATH_after_strategy=')
-    assertStringIncludes(logContents, 'command_v_mise_before_strategy=')
-    assertStringIncludes(logContents, 'command_v_mise_after_strategy=')
-    assertStringIncludes(
-      logContents,
-      'command_v_mise_after_strategy=/',
-    )
-    assertStringIncludes(logContents, 'resolved_cross_plugin_root=')
   } finally {
     await Deno.remove(baseDir, { recursive: true })
   }
@@ -847,53 +794,10 @@ Deno.test('sa-mise-session-start-b fails clearly when the sibling sa-mise plugin
     )
 
     const hookResult = await runSessionStartHook(pluginRoot, env)
-    const logPath = sharedHookLogPath(env.HOME)
-    const logContents = await Deno.readTextFile(logPath)
+    const stderr = new TextDecoder().decode(hookResult.stderr)
 
-    assertEquals(hookResult.success, true)
-    assertStringIncludes(logContents, 'plugin_name=sa-mise-session-start-b')
-    assertStringIncludes(logContents, 'hook_strategy=cross-plugin-sa-mise')
-    assertStringIncludes(logContents, 'hook_status=failure')
-    assertStringIncludes(logContents, 'sa-mise plugin not found')
-  } finally {
-    await Deno.remove(baseDir, { recursive: true })
-  }
-})
-
-Deno.test('SessionStart hook logs forced failures with diagnostic context', async () => {
-  const baseDir = await Deno.makeTempDir()
-
-  try {
-    const pluginName = 'sa-mise-session-start-a'
-    const { pluginRoot } = await createPluginFixture(
-      baseDir,
-      'session',
-      pluginName,
-    )
-    const { downloadLogPath, mockBinDir } = await createMockTooling(baseDir)
-    const sharedRoot = sharedRootFromPluginRoot(pluginRoot)
-    const env = createEnv(
-      baseDir,
-      pluginName,
-      downloadLogPath,
-      mockBinDir,
-      sharedRoot,
-    )
-
-    env.SA_MISE_HOOK_FORCE_FAILURE = '1'
-
-    const hookResult = await runSessionStartHook(pluginRoot, env)
-    const logPath = sharedHookLogPath(env.HOME)
-    const logContents = await Deno.readTextFile(logPath)
-
-    assertEquals(hookResult.success, true)
-    assertStringIncludes(logContents, 'plugin_name=sa-mise-session-start-a')
-    assertStringIncludes(logContents, 'hook_strategy=path-prepend')
-    assertStringIncludes(logContents, 'hook_status=failure')
-    assertStringIncludes(logContents, 'forced failure')
-    assertStringIncludes(logContents, 'PATH_before_strategy=')
-    assertStringIncludes(logContents, 'PATH_after_strategy=')
-    assertStringIncludes(logContents, 'command_v_mise_after_strategy=')
+    assertEquals(hookResult.success, false)
+    assertStringIncludes(stderr, 'sa-mise plugin not found')
   } finally {
     await Deno.remove(baseDir, { recursive: true })
   }

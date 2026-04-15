@@ -38,20 +38,7 @@ ${CLAUDE_PLUGIN_ROOT}/bin/mise <args>
   `<shared-root>/.claude/plugins/shared-runtime/mise/<platform>/`
 - Any peer plugin may run first, recreate the shared symlink, or backfill its
   own mirror from shared state.
-- This fixture exists to prove SessionStart hook execution against the shared
-  runtime using the `direct plugin-root binary` hook strategy.
-- Registered inline SessionStart hooks from all three peer fixtures append to:
-  `~/.sa-mise-session-start.log`
-- This fixture's SessionStart strategy is: `direct plugin-root binary`
-- To inspect the shared hook trace, print the log directly:
-  `cat ~/.sa-mise-session-start.log`
+- This fixture includes a minimal inline SessionStart hook that exercises its
+  bundled runtime lookup path.
 - Shared resolver diagnostics are still captured here for the shim itself:
   `${CLAUDE_PLUGIN_DATA}/state/cowork-plugin-context.env`
-
-## Hook Trace
-
-To print the shared SessionStart hook log from any peer fixture:
-
-```bash
-cat ~/.sa-mise-session-start.log
-```
