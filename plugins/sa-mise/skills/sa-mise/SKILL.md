@@ -38,7 +38,8 @@ ${CLAUDE_PLUGIN_ROOT}/bin/mise <args>
   `<shared-root>/.claude/plugins/shared-runtime/mise/<platform>/`
 - Any peer plugin may run first, recreate the shared symlink, or backfill its
   own mirror from shared state.
-- This fixture includes a minimal SessionStart hook that writes PATH into
-  CLAUDE_ENV_FILE and exercises its bundled runtime lookup path.
+- This fixture includes a minimal SessionStart hook that writes PATH plus a
+  probe env var into CLAUDE_ENV_FILE and exercises its bundled runtime lookup
+  path.
 - Shared resolver diagnostics are still captured here for the shim itself:
   `${CLAUDE_PLUGIN_DATA}/state/cowork-plugin-context.env`

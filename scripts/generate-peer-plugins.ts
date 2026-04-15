@@ -9,7 +9,7 @@ type PluginDefinition = {
   hasHookFixture: boolean
   hookSummary?: string
   hooks?: Array<{
-    event: 'SessionStart' | 'CwdChanged' | 'FileChanged'
+    event: 'SessionStart' | 'CwdChanged' | 'FileChanged' | 'UserPromptSubmit'
     matcher?: string
     command: string
   }>
@@ -17,6 +17,8 @@ type PluginDefinition = {
 }
 
 const VERSION = '1.0.0'
+const SESSION_ENV_PROBE_VAR = 'SA_MISE_SESSION_ENV_PROBE'
+const SESSION_ENV_PROBE_VALUE = 'visible-from-session-start'
 const OWNER = {
   name: 'Vladimir Semashko',
   email: 'vsemashko@gmail.com',
@@ -32,7 +34,7 @@ const PEER_PLUGINS: PluginDefinition[] = [
       'Run the generated peer-safe mise shim exposed by this marketplace fixture.',
     hasHookFixture: true,
     hookSummary:
-      'This fixture includes a minimal SessionStart hook that writes PATH into CLAUDE_ENV_FILE and exercises its bundled runtime lookup path.',
+      'This fixture includes a minimal SessionStart hook that writes PATH plus a probe env var into CLAUDE_ENV_FILE and exercises its bundled runtime lookup path.',
     hooks: [
       {
         event: 'SessionStart',
@@ -53,6 +55,7 @@ const PEER_PLUGINS: PluginDefinition[] = [
           'if [ -n "${CLAUDE_ENV_FILE:-}" ]; then',
           '  mkdir -p "$(dirname "$CLAUDE_ENV_FILE")"',
           `  printf 'case ":$PATH:" in\n*:%s:*) ;;\n*) export PATH="%s:$PATH" ;;\nesac\n' "$sa_mise_bin" "$sa_mise_bin" >> "$CLAUDE_ENV_FILE"`,
+          `  printf 'export ${SESSION_ENV_PROBE_VAR}="%s"\\n' "${SESSION_ENV_PROBE_VALUE}" >> "$CLAUDE_ENV_FILE"`,
           'fi',
           '',
           '"${CLAUDE_PLUGIN_ROOT:-}/bin/mise" exec deno@latest -- deno eval \'Deno.exit(0)\' >/dev/null 2>&1',
@@ -132,32 +135,31 @@ const PEER_PLUGINS: PluginDefinition[] = [
   {
     name: 'sa-mise-session-start-c',
     description:
-      'Peer Cowork fixture whose CwdChanged hook sources CLAUDE_ENV_FILE and relies on PATH exported by sa-mise',
+      'Peer Cowork fixture whose UserPromptSubmit hook relies on env inherited from sa-mise SessionStart exports',
     skillName: 'sa-mise-session-start-c',
     skillDescription:
       'Run the generated peer-safe mise shim exposed by SessionStart hook fixture C.',
     hasHookFixture: true,
     hookSummary:
-      'This fixture includes a minimal CwdChanged hook that sources CLAUDE_ENV_FILE and exercises bare mise outside SessionStart.',
+      'This fixture includes a minimal UserPromptSubmit hook that expects inherited PATH and probe env visibility without sourcing CLAUDE_ENV_FILE.',
     hooks: [
       {
-        event: 'CwdChanged',
+        event: 'UserPromptSubmit',
         matcher: '',
-        command: '"${CLAUDE_PLUGIN_ROOT:-}/scripts/cwd-changed-sa-mise.sh"',
+        command:
+          '"${CLAUDE_PLUGIN_ROOT:-}/scripts/user-prompt-submit-sa-mise.sh"',
       },
     ],
     extraFiles: [
       {
-        path: 'scripts/cwd-changed-sa-mise.sh',
+        path: 'scripts/user-prompt-submit-sa-mise.sh',
         executable: true,
         content: [
           '#!/bin/sh',
           '',
           'set -eu',
           '',
-          'if [ -n "${CLAUDE_ENV_FILE:-}" ] && [ -f "${CLAUDE_ENV_FILE}" ]; then',
-          '  . "${CLAUDE_ENV_FILE}"',
-          'fi',
+          `test "\${${SESSION_ENV_PROBE_VAR}:-}" = "${SESSION_ENV_PROBE_VALUE}"`,
           '',
           "mise exec deno@latest -- deno eval 'Deno.exit(0)' >/dev/null 2>&1",
         ].join('\n'),
@@ -399,6 +401,15 @@ async function generatePeerPlugin(plugin: PluginDefinition): Promise<void> {
     )
   ) {
     await removeIfExists(join(pluginRoot, 'scripts', 'cwd-changed-sa-mise.sh'))
+  }
+  if (
+    !(plugin.extraFiles ?? []).some((file) =>
+      file.path === 'scripts/user-prompt-submit-sa-mise.sh'
+    )
+  ) {
+    await removeIfExists(
+      join(pluginRoot, 'scripts', 'user-prompt-submit-sa-mise.sh'),
+    )
   }
 
   if (!plugin.hasHookFixture) {

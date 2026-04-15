@@ -82,6 +82,12 @@ Deno.test('peer plugins ship identical generated shims and shared helpers', asyn
     )
     assertEquals(
       await exists(join(pluginRoot, 'scripts', 'cwd-changed-sa-mise.sh')),
+      false,
+    )
+    assertEquals(
+      await exists(
+        join(pluginRoot, 'scripts', 'user-prompt-submit-sa-mise.sh'),
+      ),
       pluginName === 'sa-mise-session-start-c',
     )
     assertEquals(
@@ -144,8 +150,14 @@ Deno.test('peer plugins ship identical generated shims and shared helpers', asyn
     if (pluginName === 'sa-mise-session-start-c') {
       assertEquals(
         (await Deno.readTextFile(
-          join(pluginRoot, 'scripts', 'cwd-changed-sa-mise.sh'),
+          join(pluginRoot, 'scripts', 'user-prompt-submit-sa-mise.sh'),
         )).includes('>/dev/null 2>&1'),
+        true,
+      )
+      assertEquals(
+        (await Deno.readTextFile(
+          join(pluginRoot, 'scripts', 'user-prompt-submit-sa-mise.sh'),
+        )).includes('SA_MISE_SESSION_ENV_PROBE'),
         true,
       )
     }
@@ -164,10 +176,17 @@ Deno.test('peer plugins ship identical generated shims and shared helpers', asyn
       ?.command ?? ''
     const cwdChangedCommand = hooksConfig.hooks.CwdChanged?.[0]?.hooks[0]
       ?.command ?? ''
-    hookCommands[pluginName] = sessionStartCommand || cwdChangedCommand
+    const userPromptSubmitCommand = hooksConfig.hooks.UserPromptSubmit?.[0]
+      ?.hooks[0]?.command ?? ''
+    hookCommands[pluginName] = sessionStartCommand || cwdChangedCommand ||
+      userPromptSubmitCommand
     if (pluginName === 'sa-mise-session-start-c') {
       assertEquals(sessionStartCommand, '')
-      assertEquals(cwdChangedCommand.includes('cwd-changed-sa-mise.sh'), true)
+      assertEquals(cwdChangedCommand, '')
+      assertEquals(
+        userPromptSubmitCommand.includes('user-prompt-submit-sa-mise.sh'),
+        true,
+      )
     }
 
     assertEquals(hookCommands[pluginName].includes('session-start.sh'), false)
@@ -218,13 +237,19 @@ Deno.test('peer plugins ship identical generated shims and shared helpers', asyn
   )
   assertEquals(
     hookCommands['sa-mise-session-start-c'].includes(
-      'cwd-changed-sa-mise.sh',
+      'user-prompt-submit-sa-mise.sh',
     ),
     true,
   )
   assertEquals(
     hookCommands['sa-mise-session-start-c'].includes(
       'find-sa-mise-sibling.sh',
+    ),
+    false,
+  )
+  assertEquals(
+    hookCommands['sa-mise-session-start-c'].includes(
+      'SA_MISE_SESSION_ENV_PROBE',
     ),
     false,
   )

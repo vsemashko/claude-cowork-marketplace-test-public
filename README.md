@@ -75,20 +75,23 @@ Then install `dist/sa-cowork-config-mcp.mcpb` in Claude Desktop and configure:
 - the runtime installs the latest official `mise` binary on first use
 - runtime files never write into `${HOME}`
 - all peer fixtures register minimal hooks in `hooks/hooks.json`
-- `sa-mise` also appends an idempotent PATH export to `CLAUDE_ENV_FILE` so later
-  Bash commands in the session can discover its `bin/` directory
+- `sa-mise` also appends an idempotent PATH export plus a dedicated probe env
+  var to `CLAUDE_ENV_FILE` so later hooks and Bash commands can prove session
+  env visibility
 - the peer hooks intentionally exercise different lookup paths:
   - `sa-mise` invokes `${CLAUDE_PLUGIN_ROOT}/bin/mise` directly
   - `sa-mise-session-start-a` prepends `${CLAUDE_PLUGIN_ROOT}/bin` to `PATH` and
     then invokes bare `mise`
   - `sa-mise-session-start-b` resolves the sibling `sa-mise` plugin through a
     small helper script and invokes its `bin/mise` directly with no fallback
-  - `sa-mise-session-start-c` runs on `CwdChanged`, explicitly sources
-    `CLAUDE_ENV_FILE`, and then invokes bare `mise`
+  - `sa-mise-session-start-c` runs on `UserPromptSubmit`, does not source
+    `CLAUDE_ENV_FILE`, and invokes bare `mise` only if the SessionStart exports
+    are already visible to later hooks
 - the hooks are intentionally quiet now: they only execute the runtime probe and
   rely on the command exit status for success or failure
-- `CLAUDE_ENV_FILE` should be treated as session env for later Bash commands,
-  not as implicit input for sibling SessionStart hooks
+- `CLAUDE_ENV_FILE` should be treated as the source of persisted session env;
+  `sa-mise-session-start-c` probes whether that env becomes visible to later
+  hook processes as well
 
 ## Skill
 
@@ -131,12 +134,13 @@ ${CLAUDE_PLUGIN_ROOT}/bin/mise --version
    - `<shared-root>/.claude/plugins/shared-runtime/mise/${platform}/registry.json`
    - `${CLAUDE_PLUGIN_DATA}/runtime-mirror/mise/${platform}/install-status.env`
    - `${CLAUDE_PLUGIN_DATA}/state/cowork-plugin-context.env`
-5. Trigger SessionStart and verify `sa-mise` writes a PATH export into
-   `CLAUDE_ENV_FILE`.
+5. Trigger SessionStart and verify `sa-mise` writes both a PATH export and a
+   probe env var into `CLAUDE_ENV_FILE`.
 6. Run a later Bash command and verify bare `mise` resolves through that
-   exported PATH.
-7. Trigger `CwdChanged` and verify `sa-mise-session-start-c` can run bare `mise`
-   after sourcing `CLAUDE_ENV_FILE`.
+   exported PATH and the probe env var is present.
+7. Trigger `UserPromptSubmit` and verify `sa-mise-session-start-c` can run bare
+   `mise` without sourcing `CLAUDE_ENV_FILE`, proving those exports are visible
+   to later hook processes.
 
 ## Shared Resolver State
 

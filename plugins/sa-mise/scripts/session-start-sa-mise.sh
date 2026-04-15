@@ -10,6 +10,7 @@ if [ -n "${CLAUDE_ENV_FILE:-}" ]; then
 *) export PATH="%s:$PATH" ;;
 esac
 ' "$sa_mise_bin" "$sa_mise_bin" >> "$CLAUDE_ENV_FILE"
+  printf 'export SA_MISE_SESSION_ENV_PROBE="%s"\n' "visible-from-session-start" >> "$CLAUDE_ENV_FILE"
 fi
 
 "${CLAUDE_PLUGIN_ROOT:-}/bin/mise" exec deno@latest -- deno eval 'Deno.exit(0)' >/dev/null 2>&1

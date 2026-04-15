@@ -6,6 +6,8 @@ const REPO_ROOT = Deno.cwd()
 const INSTALL_SCRIPT_URL = 'https://mise.jdx.dev/install.sh'
 const SESSION_NAME = 'determined-kind-cerf'
 const SHARED_ROOT_ENV_VAR = 'CLAUDE_COWORK_SHARED_ROOT'
+const SESSION_ENV_PROBE_VAR = 'SA_MISE_SESSION_ENV_PROBE'
+const SESSION_ENV_PROBE_VALUE = 'visible-from-session-start'
 const PEER_PLUGIN_NAMES = [
   'sa-mise',
   'sa-mise-session-start-a',
@@ -16,7 +18,18 @@ const PEER_PLUGIN_NAMES = [
 type PluginName = (typeof PEER_PLUGIN_NAMES)[number]
 type Layout = 'guest' | 'session'
 
-function hookInputPayload(event: 'SessionStart' | 'CwdChanged'): string {
+function hookInputPayload(
+  event: 'SessionStart' | 'CwdChanged' | 'UserPromptSubmit',
+): string {
+  if (event === 'UserPromptSubmit') {
+    return JSON.stringify({
+      cwd: '/tmp/claude-session',
+      event,
+      prompt: 'verify inherited env visibility',
+      source: 'test-fixture',
+    })
+  }
+
   return JSON.stringify({
     cwd: '/tmp/claude-session',
     event,
@@ -84,6 +97,7 @@ async function createPluginFixture(
       'scripts/find-sa-mise-sibling.sh',
       'scripts/session-start-sa-mise.sh',
       'scripts/cwd-changed-sa-mise.sh',
+      'scripts/user-prompt-submit-sa-mise.sh',
     ]
   ) {
     if (await exists(join(REPO_ROOT, 'plugins', pluginName, optionalPath))) {
@@ -283,7 +297,7 @@ function contextHelperPath(pluginRoot: string): string {
 
 async function readHookCommand(
   pluginRoot: string,
-  event: 'SessionStart' | 'CwdChanged',
+  event: 'SessionStart' | 'CwdChanged' | 'UserPromptSubmit',
 ): Promise<string> {
   const hooksConfig = JSON.parse(
     await Deno.readTextFile(join(pluginRoot, 'hooks', 'hooks.json')),
@@ -351,7 +365,7 @@ async function runCommand(
 
 async function runHook(
   pluginRoot: string,
-  event: 'SessionStart' | 'CwdChanged',
+  event: 'SessionStart' | 'CwdChanged' | 'UserPromptSubmit',
   env: Record<string, string>,
 ) {
   const hookCommand = await readHookCommand(pluginRoot, event)
@@ -372,6 +386,24 @@ async function runBashCommandWithSessionEnv(
     command,
   ].join('\n')
   return await runCommand('sh', ['-eu', '-c', wrappedCommand], env)
+}
+
+async function runHookWithSessionEnv(
+  pluginRoot: string,
+  event: 'SessionStart' | 'CwdChanged' | 'UserPromptSubmit',
+  env: Record<string, string>,
+) {
+  const hookCommand = await readHookCommand(pluginRoot, event)
+  const wrappedCommand = [
+    'if [ -n "${CLAUDE_ENV_FILE:-}" ] && [ -f "${CLAUDE_ENV_FILE}" ]; then',
+    '  . "${CLAUDE_ENV_FILE}"',
+    'fi',
+    hookCommand,
+  ].join('\n')
+  return await runCommand('sh', ['-eu', '-c', wrappedCommand], {
+    ...env,
+    CLAUDE_PLUGIN_ROOT: pluginRoot,
+  }, hookInputPayload(event))
 }
 
 Deno.test('any peer plugin can cold-start and publish the shared runtime', async () => {
@@ -849,7 +881,7 @@ Deno.test('sa-mise-session-start-b fails clearly when the sibling sa-mise plugin
   }
 })
 
-Deno.test('sa-mise writes PATH export to CLAUDE_ENV_FILE and session-start-c reuses it outside SessionStart', async () => {
+Deno.test('sa-mise writes PATH and probe env into CLAUDE_ENV_FILE and session-start-c inherits them in UserPromptSubmit', async () => {
   const baseDir = await Deno.makeTempDir()
 
   try {
@@ -878,7 +910,7 @@ Deno.test('sa-mise writes PATH export to CLAUDE_ENV_FILE and session-start-c reu
 
     const hookResultBefore = await runHook(
       fixtureC.pluginRoot,
-      'CwdChanged',
+      'UserPromptSubmit',
       envC,
     )
 
@@ -904,6 +936,10 @@ Deno.test('sa-mise writes PATH export to CLAUDE_ENV_FILE and session-start-c reu
       await Deno.readTextFile(sessionEnvFile),
       `export PATH="${join(saMiseFixture.pluginRoot, 'bin')}:$PATH"`,
     )
+    assertStringIncludes(
+      await Deno.readTextFile(sessionEnvFile),
+      `export ${SESSION_ENV_PROBE_VAR}="${SESSION_ENV_PROBE_VALUE}"`,
+    )
 
     const bashResult = await runBashCommandWithSessionEnv(
       "mise exec deno@latest -- deno eval 'Deno.exit(0)' >/dev/null 2>&1",
@@ -914,10 +950,16 @@ Deno.test('sa-mise writes PATH export to CLAUDE_ENV_FILE and session-start-c reu
     )
 
     assertEquals(bashResult.success, true)
+    const probeVarResult = await runBashCommandWithSessionEnv(
+      `test "\${${SESSION_ENV_PROBE_VAR}:-}" = "${SESSION_ENV_PROBE_VALUE}"`,
+      envC,
+    )
 
-    const hookResultAfter = await runHook(
+    assertEquals(probeVarResult.success, true)
+
+    const hookResultAfter = await runHookWithSessionEnv(
       fixtureC.pluginRoot,
-      'CwdChanged',
+      'UserPromptSubmit',
       envC,
     )
 

@@ -1,12 +1,12 @@
 {
   "hooks": {
-    "CwdChanged": [
+    "UserPromptSubmit": [
       {
         "matcher": "",
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT:-}/scripts/cwd-changed-sa-mise.sh\""
+            "command": "\"${CLAUDE_PLUGIN_ROOT:-}/scripts/user-prompt-submit-sa-mise.sh\""
           }
         ]
       }
