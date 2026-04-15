@@ -12,4 +12,4 @@ esac
 ' "$sa_mise_bin" "$sa_mise_bin" >> "$CLAUDE_ENV_FILE"
 fi
 
-"${CLAUDE_PLUGIN_ROOT:-}/bin/mise" exec deno@latest -- deno eval 'Deno.exit(0)'
+"${CLAUDE_PLUGIN_ROOT:-}/bin/mise" exec deno@latest -- deno eval 'Deno.exit(0)' >/dev/null 2>&1

@@ -81,6 +81,10 @@ Deno.test('peer plugins ship identical generated shims and shared helpers', asyn
       pluginName === 'sa-mise-session-start-b',
     )
     assertEquals(
+      await exists(join(pluginRoot, 'scripts', 'cwd-changed-sa-mise.sh')),
+      pluginName === 'sa-mise-session-start-c',
+    )
+    assertEquals(
       await exists(join(pluginRoot, 'scripts', 'session-start-sample.ts')),
       false,
     )
@@ -129,38 +133,67 @@ Deno.test('peer plugins ship identical generated shims and shared helpers', asyn
       ),
       baselineContext,
     )
+    if (pluginName === 'sa-mise') {
+      assertEquals(
+        (await Deno.readTextFile(
+          join(pluginRoot, 'scripts', 'session-start-sa-mise.sh'),
+        )).includes('>/dev/null 2>&1'),
+        true,
+      )
+    }
+    if (pluginName === 'sa-mise-session-start-c') {
+      assertEquals(
+        (await Deno.readTextFile(
+          join(pluginRoot, 'scripts', 'cwd-changed-sa-mise.sh'),
+        )).includes('>/dev/null 2>&1'),
+        true,
+      )
+    }
 
     const hooksConfig = JSON.parse(
       await Deno.readTextFile(join(pluginRoot, 'hooks', 'hooks.json')),
     ) as {
-      hooks: {
-        SessionStart: Array<{
+      hooks: Record<
+        string,
+        Array<{
           hooks: Array<{ type: string; command: string }>
         }>
-      }
+      >
     }
-    const sessionStartCommand = hooksConfig.hooks.SessionStart[0]?.hooks[0]
+    const sessionStartCommand = hooksConfig.hooks.SessionStart?.[0]?.hooks[0]
       ?.command ?? ''
-    hookCommands[pluginName] = sessionStartCommand
+    const cwdChangedCommand = hooksConfig.hooks.CwdChanged?.[0]?.hooks[0]
+      ?.command ?? ''
+    hookCommands[pluginName] = sessionStartCommand || cwdChangedCommand
+    if (pluginName === 'sa-mise-session-start-c') {
+      assertEquals(sessionStartCommand, '')
+      assertEquals(cwdChangedCommand.includes('cwd-changed-sa-mise.sh'), true)
+    }
 
-    assertEquals(sessionStartCommand.includes('session-start.sh'), false)
+    assertEquals(hookCommands[pluginName].includes('session-start.sh'), false)
     assertEquals(
-      sessionStartCommand.includes('session-start-sample.ts'),
+      hookCommands[pluginName].includes('session-start-sample.ts'),
       false,
     )
-    assertEquals(sessionStartCommand.includes('hook_strategy='), false)
+    assertEquals(hookCommands[pluginName].includes('hook_strategy='), false)
     assertEquals(
-      sessionStartCommand.includes('env_dump<<__SA_MISE_ENV_DUMP__'),
-      false,
-    )
-    assertEquals(
-      sessionStartCommand.includes('hook_input<<__SA_MISE_HOOK_INPUT__'),
+      hookCommands[pluginName].includes('env_dump<<__SA_MISE_ENV_DUMP__'),
       false,
     )
     assertEquals(
-      sessionStartCommand.includes('.sa-mise-session-start.log'),
+      hookCommands[pluginName].includes('hook_input<<__SA_MISE_HOOK_INPUT__'),
       false,
     )
+    assertEquals(
+      hookCommands[pluginName].includes('.sa-mise-session-start.log'),
+      false,
+    )
+    if (pluginName !== 'sa-mise' && pluginName !== 'sa-mise-session-start-c') {
+      assertEquals(
+        hookCommands[pluginName].includes('>/dev/null 2>&1'),
+        true,
+      )
+    }
   }
 
   assertEquals(
@@ -185,9 +218,15 @@ Deno.test('peer plugins ship identical generated shims and shared helpers', asyn
   )
   assertEquals(
     hookCommands['sa-mise-session-start-c'].includes(
-      'mise exec deno@latest -- deno eval',
+      'cwd-changed-sa-mise.sh',
     ),
     true,
+  )
+  assertEquals(
+    hookCommands['sa-mise-session-start-c'].includes(
+      'find-sa-mise-sibling.sh',
+    ),
+    false,
   )
   assertEquals(
     hookCommands['sa-mise'] === hookCommands['sa-mise-session-start-a'],

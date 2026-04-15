@@ -7,7 +7,12 @@ type PluginDefinition = {
   skillName: string
   skillDescription: string
   hasHookFixture: boolean
-  sessionStartCommand?: string
+  hookSummary?: string
+  hooks?: Array<{
+    event: 'SessionStart' | 'CwdChanged' | 'FileChanged'
+    matcher?: string
+    command: string
+  }>
   extraFiles?: Array<{ path: string; content: string; executable?: boolean }>
 }
 
@@ -26,8 +31,15 @@ const PEER_PLUGINS: PluginDefinition[] = [
     skillDescription:
       'Run the generated peer-safe mise shim exposed by this marketplace fixture.',
     hasHookFixture: true,
-    sessionStartCommand:
-      '"${CLAUDE_PLUGIN_ROOT:-}/scripts/session-start-sa-mise.sh"',
+    hookSummary:
+      'This fixture includes a minimal SessionStart hook that writes PATH into CLAUDE_ENV_FILE and exercises its bundled runtime lookup path.',
+    hooks: [
+      {
+        event: 'SessionStart',
+        matcher: '',
+        command: '"${CLAUDE_PLUGIN_ROOT:-}/scripts/session-start-sa-mise.sh"',
+      },
+    ],
     extraFiles: [
       {
         path: 'scripts/session-start-sa-mise.sh',
@@ -43,7 +55,7 @@ const PEER_PLUGINS: PluginDefinition[] = [
           `  printf 'case ":$PATH:" in\n*:%s:*) ;;\n*) export PATH="%s:$PATH" ;;\nesac\n' "$sa_mise_bin" "$sa_mise_bin" >> "$CLAUDE_ENV_FILE"`,
           'fi',
           '',
-          '"${CLAUDE_PLUGIN_ROOT:-}/bin/mise" exec deno@latest -- deno eval \'Deno.exit(0)\'',
+          '"${CLAUDE_PLUGIN_ROOT:-}/bin/mise" exec deno@latest -- deno eval \'Deno.exit(0)\' >/dev/null 2>&1',
         ].join('\n'),
       },
     ],
@@ -56,8 +68,16 @@ const PEER_PLUGINS: PluginDefinition[] = [
     skillDescription:
       'Run the generated peer-safe mise shim exposed by SessionStart hook fixture A.',
     hasHookFixture: true,
-    sessionStartCommand:
-      'PATH="${CLAUDE_PLUGIN_ROOT:-}/bin:${PATH}" mise exec deno@latest -- deno eval \'Deno.exit(0)\'',
+    hookSummary:
+      'This fixture includes a minimal SessionStart hook that prepends its bundled bin directory to PATH before invoking bare mise.',
+    hooks: [
+      {
+        event: 'SessionStart',
+        matcher: '',
+        command:
+          'PATH="${CLAUDE_PLUGIN_ROOT:-}/bin:${PATH}" mise exec deno@latest -- deno eval \'Deno.exit(0)\' >/dev/null 2>&1',
+      },
+    ],
   },
   {
     name: 'sa-mise-session-start-b',
@@ -67,10 +87,18 @@ const PEER_PLUGINS: PluginDefinition[] = [
     skillDescription:
       'Run the generated peer-safe mise shim exposed by SessionStart hook fixture B.',
     hasHookFixture: true,
-    sessionStartCommand: [
-      'sibling_root="$("${CLAUDE_PLUGIN_ROOT:-}/scripts/find-sa-mise-sibling.sh")"',
-      '"$sibling_root/bin/mise" exec deno@latest -- deno eval \'Deno.exit(0)\'',
-    ].join('\n'),
+    hookSummary:
+      'This fixture includes a minimal SessionStart hook that resolves the sibling sa-mise plugin and invokes its bundled mise shim directly.',
+    hooks: [
+      {
+        event: 'SessionStart',
+        matcher: '',
+        command: [
+          'sibling_root="$("${CLAUDE_PLUGIN_ROOT:-}/scripts/find-sa-mise-sibling.sh")"',
+          '"$sibling_root/bin/mise" exec deno@latest -- deno eval \'Deno.exit(0)\' >/dev/null 2>&1',
+        ].join('\n'),
+      },
+    ],
     extraFiles: [
       {
         path: 'scripts/find-sa-mise-sibling.sh',
@@ -104,12 +132,37 @@ const PEER_PLUGINS: PluginDefinition[] = [
   {
     name: 'sa-mise-session-start-c',
     description:
-      'Peer Cowork fixture whose SessionStart hook relies on PATH exported by sa-mise through CLAUDE_ENV_FILE',
+      'Peer Cowork fixture whose CwdChanged hook sources CLAUDE_ENV_FILE and relies on PATH exported by sa-mise',
     skillName: 'sa-mise-session-start-c',
     skillDescription:
       'Run the generated peer-safe mise shim exposed by SessionStart hook fixture C.',
     hasHookFixture: true,
-    sessionStartCommand: "mise exec deno@latest -- deno eval 'Deno.exit(0)'",
+    hookSummary:
+      'This fixture includes a minimal CwdChanged hook that sources CLAUDE_ENV_FILE and exercises bare mise outside SessionStart.',
+    hooks: [
+      {
+        event: 'CwdChanged',
+        matcher: '',
+        command: '"${CLAUDE_PLUGIN_ROOT:-}/scripts/cwd-changed-sa-mise.sh"',
+      },
+    ],
+    extraFiles: [
+      {
+        path: 'scripts/cwd-changed-sa-mise.sh',
+        executable: true,
+        content: [
+          '#!/bin/sh',
+          '',
+          'set -eu',
+          '',
+          'if [ -n "${CLAUDE_ENV_FILE:-}" ] && [ -f "${CLAUDE_ENV_FILE}" ]; then',
+          '  . "${CLAUDE_ENV_FILE}"',
+          'fi',
+          '',
+          "mise exec deno@latest -- deno eval 'Deno.exit(0)' >/dev/null 2>&1",
+        ].join('\n'),
+      },
+    ],
   },
 ]
 
@@ -173,33 +226,27 @@ function createPluginJson(plugin: PluginDefinition): string {
   }\n`
 }
 
-function createSessionStartCommand(plugin: PluginDefinition): string {
-  if (!plugin.sessionStartCommand) {
-    throw new Error(
-      `Hook fixture requested for ${plugin.name} without sessionStartCommand`,
-    )
+function createHooksJson(plugin: PluginDefinition): string {
+  if (!plugin.hooks || plugin.hooks.length === 0) {
+    throw new Error(`Hook fixture requested for ${plugin.name} without hooks`)
   }
 
-  return plugin.sessionStartCommand
-}
+  const hooksByEvent: Record<
+    string,
+    Array<{ matcher: string; hooks: Array<{ type: string; command: string }> }>
+  > = {}
+  for (const hook of plugin.hooks) {
+    hooksByEvent[hook.event] ??= []
+    hooksByEvent[hook.event].push({
+      matcher: hook.matcher ?? '',
+      hooks: [{ type: 'command', command: hook.command }],
+    })
+  }
 
-function createHooksJson(plugin: PluginDefinition): string {
   return `${
     JSON.stringify(
       {
-        hooks: {
-          SessionStart: [
-            {
-              matcher: '',
-              hooks: [
-                {
-                  type: 'command',
-                  command: createSessionStartCommand(plugin),
-                },
-              ],
-            },
-          ],
-        },
+        hooks: hooksByEvent,
       },
       null,
       2,
@@ -209,8 +256,7 @@ function createHooksJson(plugin: PluginDefinition): string {
 
 function createSkillContent(plugin: PluginDefinition): string {
   const hookNotes = plugin.hasHookFixture
-    ? `- This fixture includes a minimal SessionStart hook that exercises
-  its bundled runtime lookup path.
+    ? `- ${plugin.hookSummary}
 - Shared resolver diagnostics are still captured here for the shim itself:
   \`\${CLAUDE_PLUGIN_DATA}/state/cowork-plugin-context.env\``
     : `- This fixture does not include a sample SessionStart hook.
@@ -346,6 +392,13 @@ async function generatePeerPlugin(plugin: PluginDefinition): Promise<void> {
     await removeIfExists(
       join(pluginRoot, 'scripts', 'session-start-sa-mise.sh'),
     )
+  }
+  if (
+    !(plugin.extraFiles ?? []).some((file) =>
+      file.path === 'scripts/cwd-changed-sa-mise.sh'
+    )
+  ) {
+    await removeIfExists(join(pluginRoot, 'scripts', 'cwd-changed-sa-mise.sh'))
   }
 
   if (!plugin.hasHookFixture) {

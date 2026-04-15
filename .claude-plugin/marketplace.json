@@ -44,7 +44,7 @@
     },
     {
       "name": "sa-mise-session-start-c",
-      "description": "Peer Cowork fixture whose SessionStart hook relies on PATH exported by sa-mise through CLAUDE_ENV_FILE",
+      "description": "Peer Cowork fixture whose CwdChanged hook sources CLAUDE_ENV_FILE and relies on PATH exported by sa-mise",
       "version": "1.0.0",
       "category": "core",
       "source": "./plugins/sa-mise-session-start-c",

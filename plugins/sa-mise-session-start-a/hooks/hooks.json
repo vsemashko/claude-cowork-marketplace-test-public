@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "PATH=\"${CLAUDE_PLUGIN_ROOT:-}/bin:${PATH}\" mise exec deno@latest -- deno eval 'Deno.exit(0)'"
+            "command": "PATH=\"${CLAUDE_PLUGIN_ROOT:-}/bin:${PATH}\" mise exec deno@latest -- deno eval 'Deno.exit(0)' >/dev/null 2>&1"
           }
         ]
       }

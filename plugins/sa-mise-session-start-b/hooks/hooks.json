@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "sibling_root=\"$(\"${CLAUDE_PLUGIN_ROOT:-}/scripts/find-sa-mise-sibling.sh\")\"\n\"$sibling_root/bin/mise\" exec deno@latest -- deno eval 'Deno.exit(0)'"
+            "command": "sibling_root=\"$(\"${CLAUDE_PLUGIN_ROOT:-}/scripts/find-sa-mise-sibling.sh\")\"\n\"$sibling_root/bin/mise\" exec deno@latest -- deno eval 'Deno.exit(0)' >/dev/null 2>&1"
           }
         ]
       }

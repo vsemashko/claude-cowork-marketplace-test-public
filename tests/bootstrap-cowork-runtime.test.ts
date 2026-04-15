@@ -6,11 +6,6 @@ const REPO_ROOT = Deno.cwd()
 const INSTALL_SCRIPT_URL = 'https://mise.jdx.dev/install.sh'
 const SESSION_NAME = 'determined-kind-cerf'
 const SHARED_ROOT_ENV_VAR = 'CLAUDE_COWORK_SHARED_ROOT'
-const HOOK_INPUT_PAYLOAD = JSON.stringify({
-  cwd: '/tmp/claude-session',
-  event: 'SessionStart',
-  source: 'test-fixture',
-})
 const PEER_PLUGIN_NAMES = [
   'sa-mise',
   'sa-mise-session-start-a',
@@ -20,6 +15,14 @@ const PEER_PLUGIN_NAMES = [
 
 type PluginName = (typeof PEER_PLUGIN_NAMES)[number]
 type Layout = 'guest' | 'session'
+
+function hookInputPayload(event: 'SessionStart' | 'CwdChanged'): string {
+  return JSON.stringify({
+    cwd: '/tmp/claude-session',
+    event,
+    source: 'test-fixture',
+  })
+}
 
 function hasHookFixture(pluginName: PluginName): boolean {
   return PEER_PLUGIN_NAMES.includes(pluginName)
@@ -80,6 +83,7 @@ async function createPluginFixture(
     const optionalPath of [
       'scripts/find-sa-mise-sibling.sh',
       'scripts/session-start-sa-mise.sh',
+      'scripts/cwd-changed-sa-mise.sh',
     ]
   ) {
     if (await exists(join(REPO_ROOT, 'plugins', pluginName, optionalPath))) {
@@ -277,18 +281,22 @@ function contextHelperPath(pluginRoot: string): string {
   return join(pluginRoot, 'scripts', 'cowork-plugin-context.sh')
 }
 
-async function readSessionStartCommand(pluginRoot: string): Promise<string> {
+async function readHookCommand(
+  pluginRoot: string,
+  event: 'SessionStart' | 'CwdChanged',
+): Promise<string> {
   const hooksConfig = JSON.parse(
     await Deno.readTextFile(join(pluginRoot, 'hooks', 'hooks.json')),
   ) as {
-    hooks: {
-      SessionStart: Array<{
+    hooks: Record<
+      string,
+      Array<{
         hooks: Array<{ type: string; command: string }>
       }>
-    }
+    >
   }
 
-  return hooksConfig.hooks.SessionStart[0]?.hooks[0]?.command ?? ''
+  return hooksConfig.hooks[event]?.[0]?.hooks[0]?.command ?? ''
 }
 
 function createEnv(
@@ -341,21 +349,29 @@ async function runCommand(
   return await child.output()
 }
 
-async function runSessionStartHook(
+async function runHook(
   pluginRoot: string,
+  event: 'SessionStart' | 'CwdChanged',
   env: Record<string, string>,
 ) {
-  const hookCommand = await readSessionStartCommand(pluginRoot)
+  const hookCommand = await readHookCommand(pluginRoot, event)
+  return await runCommand('sh', ['-eu', '-c', hookCommand], {
+    ...env,
+    CLAUDE_PLUGIN_ROOT: pluginRoot,
+  }, hookInputPayload(event))
+}
+
+async function runBashCommandWithSessionEnv(
+  command: string,
+  env: Record<string, string>,
+) {
   const wrappedCommand = [
     'if [ -n "${CLAUDE_ENV_FILE:-}" ] && [ -f "${CLAUDE_ENV_FILE}" ]; then',
     '  . "${CLAUDE_ENV_FILE}"',
     'fi',
-    hookCommand,
+    command,
   ].join('\n')
-  return await runCommand('sh', ['-eu', '-c', wrappedCommand], {
-    ...env,
-    CLAUDE_PLUGIN_ROOT: pluginRoot,
-  }, HOOK_INPUT_PAYLOAD)
+  return await runCommand('sh', ['-eu', '-c', wrappedCommand], env)
 }
 
 Deno.test('any peer plugin can cold-start and publish the shared runtime', async () => {
@@ -748,7 +764,7 @@ Deno.test('broken shared runtime is repaired from another peer mirror and stale 
   }
 })
 
-Deno.test('all peer SessionStart hooks execute successfully', async () => {
+Deno.test('peer SessionStart hooks that do not depend on CLAUDE_ENV_FILE execute successfully', async () => {
   const baseDir = await Deno.makeTempDir()
 
   try {
@@ -764,7 +780,13 @@ Deno.test('all peer SessionStart hooks execute successfully', async () => {
     const sharedRoot = sharedRootFromPluginRoot(firstFixture.pluginRoot)
     const sessionEnvFile = join(baseDir, 'claude-env', 'session.env')
 
-    for (const pluginName of PEER_PLUGIN_NAMES) {
+    for (
+      const pluginName of [
+        'sa-mise',
+        'sa-mise-session-start-a',
+        'sa-mise-session-start-b',
+      ] as const
+    ) {
       const { pluginRoot } = pluginName === 'sa-mise'
         ? firstFixture
         : await createPluginFixture(baseDir, 'session', pluginName)
@@ -778,7 +800,7 @@ Deno.test('all peer SessionStart hooks execute successfully', async () => {
       )
       env.CLAUDE_ENV_FILE = sessionEnvFile
 
-      const hookResult = await runSessionStartHook(pluginRoot, env)
+      const hookResult = await runHook(pluginRoot, 'SessionStart', env)
 
       assertEquals(hookResult.success, true)
     }
@@ -817,7 +839,7 @@ Deno.test('sa-mise-session-start-b fails clearly when the sibling sa-mise plugin
       sharedRoot,
     )
 
-    const hookResult = await runSessionStartHook(pluginRoot, env)
+    const hookResult = await runHook(pluginRoot, 'SessionStart', env)
     const stderr = new TextDecoder().decode(hookResult.stderr)
 
     assertEquals(hookResult.success, false)
@@ -827,7 +849,7 @@ Deno.test('sa-mise-session-start-b fails clearly when the sibling sa-mise plugin
   }
 })
 
-Deno.test('sa-mise writes PATH export to CLAUDE_ENV_FILE and session-start-c relies on it', async () => {
+Deno.test('sa-mise writes PATH export to CLAUDE_ENV_FILE and session-start-c reuses it outside SessionStart', async () => {
   const baseDir = await Deno.makeTempDir()
 
   try {
@@ -854,14 +876,10 @@ Deno.test('sa-mise writes PATH export to CLAUDE_ENV_FILE and session-start-c rel
     )
     envC.CLAUDE_ENV_FILE = sessionEnvFile
 
-    const hookResultBefore = await runCommand(
-      'sh',
-      ['-eu', '-c', await readSessionStartCommand(fixtureC.pluginRoot)],
-      {
-        ...envC,
-        CLAUDE_PLUGIN_ROOT: fixtureC.pluginRoot,
-      },
-      HOOK_INPUT_PAYLOAD,
+    const hookResultBefore = await runHook(
+      fixtureC.pluginRoot,
+      'CwdChanged',
+      envC,
     )
 
     assertEquals(hookResultBefore.success, false)
@@ -875,8 +893,9 @@ Deno.test('sa-mise writes PATH export to CLAUDE_ENV_FILE and session-start-c rel
     )
     envSaMise.CLAUDE_ENV_FILE = sessionEnvFile
 
-    const saMiseHookResult = await runSessionStartHook(
+    const saMiseHookResult = await runHook(
       saMiseFixture.pluginRoot,
+      'SessionStart',
       envSaMise,
     )
 
@@ -886,8 +905,19 @@ Deno.test('sa-mise writes PATH export to CLAUDE_ENV_FILE and session-start-c rel
       `export PATH="${join(saMiseFixture.pluginRoot, 'bin')}:$PATH"`,
     )
 
-    const hookResultAfter = await runSessionStartHook(
+    const bashResult = await runBashCommandWithSessionEnv(
+      "mise exec deno@latest -- deno eval 'Deno.exit(0)' >/dev/null 2>&1",
+      {
+        ...envC,
+        CLAUDE_PLUGIN_ROOT: fixtureC.pluginRoot,
+      },
+    )
+
+    assertEquals(bashResult.success, true)
+
+    const hookResultAfter = await runHook(
       fixtureC.pluginRoot,
+      'CwdChanged',
       envC,
     )
 
