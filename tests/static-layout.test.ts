@@ -4,12 +4,12 @@ import { join } from '@std/path'
 
 const PEER_PLUGIN_NAMES = [
   'sa-mise',
-  'sa-mise-forwarder',
-  'sa-mise-cross-plugin',
+  'sa-mise-session-start-a',
+  'sa-mise-session-start-b',
 ] as const
 const HOOK_PLUGIN_NAMES = [
-  'sa-mise-forwarder',
-  'sa-mise-cross-plugin',
+  'sa-mise-session-start-a',
+  'sa-mise-session-start-b',
 ] as const
 const HOOK_PLUGIN_NAME_SET = new Set<string>(HOOK_PLUGIN_NAMES)
 

@@ -21,22 +21,22 @@
       }
     },
     {
-      "name": "sa-mise-forwarder",
-      "description": "Peer Cowork fixture that uses the exact same generated mise shim as the primary fixture",
+      "name": "sa-mise-session-start-a",
+      "description": "Peer Cowork fixture with a SessionStart sample that uses the same generated mise shim as every other peer",
       "version": "1.0.0",
       "category": "core",
-      "source": "./plugins/sa-mise-forwarder",
+      "source": "./plugins/sa-mise-session-start-a",
       "author": {
         "name": "Vladimir Semashko",
         "email": "vsemashko@gmail.com"
       }
     },
     {
-      "name": "sa-mise-cross-plugin",
-      "description": "Peer Cowork fixture that validates cross-plugin shared-runtime recovery with the same generated mise shim",
+      "name": "sa-mise-session-start-b",
+      "description": "Peer Cowork fixture with a SessionStart sample that uses the same generated mise shim as every other peer",
       "version": "1.0.0",
       "category": "core",
-      "source": "./plugins/sa-mise-cross-plugin",
+      "source": "./plugins/sa-mise-session-start-b",
       "author": {
         "name": "Vladimir Semashko",
         "email": "vsemashko@gmail.com"

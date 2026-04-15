@@ -18,8 +18,8 @@ const miseVersion = await new Deno.Command('mise', {
 
 const miseStdout = new TextDecoder().decode(miseVersion.stdout).trim()
 
-console.log('sample_name=sa-mise-cross-plugin-session-start')
-console.log('plugin_name=sa-mise-cross-plugin')
+console.log('sample_name=sa-mise-session-start-a-session-start')
+console.log('plugin_name=sa-mise-session-start-a')
 console.log(`random_value=${randomValue}`)
 console.log(`resolved_mise_path=${await resolveMisePath()}`)
 console.log(`mise_version=${miseStdout}`)

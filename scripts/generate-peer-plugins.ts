@@ -27,23 +27,23 @@ const PEER_PLUGINS: PluginDefinition[] = [
     hasHookFixture: false,
   },
   {
-    name: 'sa-mise-forwarder',
+    name: 'sa-mise-session-start-a',
     description:
-      'Peer Cowork fixture that uses the exact same generated mise shim as the primary fixture',
-    skillName: 'sa-mise-forwarder',
+      'Peer Cowork fixture with a SessionStart sample that uses the same generated mise shim as every other peer',
+    skillName: 'sa-mise-session-start-a',
     skillDescription:
-      'Run the generated peer-safe mise shim exposed by the forwarder fixture.',
-    sampleName: 'sa-mise-forwarder-session-start',
+      'Run the generated peer-safe mise shim exposed by SessionStart hook fixture A.',
+    sampleName: 'sa-mise-session-start-a-session-start',
     hasHookFixture: true,
   },
   {
-    name: 'sa-mise-cross-plugin',
+    name: 'sa-mise-session-start-b',
     description:
-      'Peer Cowork fixture that validates cross-plugin shared-runtime recovery with the same generated mise shim',
-    skillName: 'sa-mise-cross-plugin',
+      'Peer Cowork fixture with a SessionStart sample that uses the same generated mise shim as every other peer',
+    skillName: 'sa-mise-session-start-b',
     skillDescription:
-      'Run the generated peer-safe mise shim exposed by the cross-plugin fixture.',
-    sampleName: 'sa-mise-cross-plugin-session-start',
+      'Run the generated peer-safe mise shim exposed by SessionStart hook fixture B.',
+    sampleName: 'sa-mise-session-start-b-session-start',
     hasHookFixture: true,
   },
 ]
@@ -164,6 +164,8 @@ If \`mise\` is not on \`PATH\`, fall back to the plugin-local shim path:
   \`<shared-root>/.claude/plugins/shared-runtime/mise/<platform>/\`
 - Any peer plugin may run first, recreate the shared symlink, or backfill its
   own mirror from shared state.
+- This fixture exists to prove SessionStart hook execution against the shared
+  runtime, not to exercise a unique shim strategy.
 ${hookNotes}
 `
 }

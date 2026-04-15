@@ -1,12 +1,12 @@
 ---
-name: sa-mise-forwarder
-description: Run the generated peer-safe mise shim exposed by the forwarder fixture.
+name: sa-mise-session-start-a
+description: Run the generated peer-safe mise shim exposed by SessionStart hook fixture A.
 ---
 
-# sa-mise-forwarder
+# sa-mise-session-start-a
 
-Use this skill when the user wants to run `mise` through the `sa-mise-forwarder`
-peer fixture.
+Use this skill when the user wants to run `mise` through the
+`sa-mise-session-start-a` peer fixture.
 
 ## Command
 
@@ -38,6 +38,8 @@ ${CLAUDE_PLUGIN_ROOT}/bin/mise <args>
   `<shared-root>/.claude/plugins/shared-runtime/mise/<platform>/`
 - Any peer plugin may run first, recreate the shared symlink, or backfill its
   own mirror from shared state.
+- This fixture exists to prove SessionStart hook execution against the shared
+  runtime, not to exercise a unique shim strategy.
 - Registered hook logs are written here:
   `${CLAUDE_PLUGIN_DATA}/logs/session-start.log`
 - Shared resolver diagnostics are captured here:

@@ -8,12 +8,12 @@ const SESSION_NAME = 'determined-kind-cerf'
 const SHARED_ROOT_ENV_VAR = 'CLAUDE_COWORK_SHARED_ROOT'
 const PEER_PLUGIN_NAMES = [
   'sa-mise',
-  'sa-mise-forwarder',
-  'sa-mise-cross-plugin',
+  'sa-mise-session-start-a',
+  'sa-mise-session-start-b',
 ] as const
 const HOOK_PLUGIN_NAMES = [
-  'sa-mise-forwarder',
-  'sa-mise-cross-plugin',
+  'sa-mise-session-start-a',
+  'sa-mise-session-start-b',
 ] as const
 const HOOK_PLUGIN_NAME_SET = new Set<string>(HOOK_PLUGIN_NAMES)
 
@@ -309,7 +309,7 @@ Deno.test('any peer plugin can cold-start and publish the shared runtime', async
   const baseDir = await Deno.makeTempDir()
 
   try {
-    const pluginName = 'sa-mise-forwarder'
+    const pluginName = 'sa-mise-session-start-a'
     const { pluginRoot } = await createPluginFixture(
       baseDir,
       'session',
@@ -362,7 +362,7 @@ Deno.test('peer plugins derive isolated plugin data paths without explicit env',
   const baseDir = await Deno.makeTempDir()
 
   try {
-    const pluginName = 'sa-mise-cross-plugin'
+    const pluginName = 'sa-mise-session-start-b'
     const { pluginRoot } = await createPluginFixture(
       baseDir,
       'guest',
@@ -396,7 +396,7 @@ Deno.test('context helper prefers explicit shared-root env when plugin data is p
   const baseDir = await Deno.makeTempDir()
 
   try {
-    const pluginName = 'sa-mise-forwarder'
+    const pluginName = 'sa-mise-session-start-a'
     const customPluginRoot = join(baseDir, 'custom-layout', pluginName)
 
     await copyFileWithMode(
@@ -445,7 +445,7 @@ Deno.test('context helper fails clearly when plugin data is set but shared root 
   const baseDir = await Deno.makeTempDir()
 
   try {
-    const pluginName = 'sa-mise-forwarder'
+    const pluginName = 'sa-mise-session-start-a'
     const customPluginRoot = join(baseDir, 'custom-layout', pluginName)
 
     await copyFileWithMode(
@@ -490,25 +490,25 @@ Deno.test('parallel cold starts trigger one download and backfill both local mir
     const pluginA = await createPluginFixture(
       baseDir,
       'session',
-      'sa-mise-forwarder',
+      'sa-mise-session-start-a',
     )
     const pluginB = await createPluginFixture(
       baseDir,
       'session',
-      'sa-mise-cross-plugin',
+      'sa-mise-session-start-b',
     )
     const { downloadLogPath, mockBinDir } = await createMockTooling(baseDir)
     const sharedRoot = sharedRootFromPluginRoot(pluginA.pluginRoot)
     const envA = createEnv(
       baseDir,
-      'sa-mise-forwarder',
+      'sa-mise-session-start-a',
       downloadLogPath,
       mockBinDir,
       sharedRoot,
     )
     const envB = createEnv(
       baseDir,
-      'sa-mise-cross-plugin',
+      'sa-mise-session-start-b',
       downloadLogPath,
       mockBinDir,
       sharedRoot,
@@ -551,7 +551,7 @@ Deno.test('warm peer start reuses the shared runtime and backfills the local mir
     const pluginB = await createPluginFixture(
       baseDir,
       'session',
-      'sa-mise-forwarder',
+      'sa-mise-session-start-a',
     )
     const { downloadLogPath, mockBinDir } = await createMockTooling(baseDir)
     const sharedRoot = sharedRootFromPluginRoot(pluginA.pluginRoot)
@@ -564,7 +564,7 @@ Deno.test('warm peer start reuses the shared runtime and backfills the local mir
     )
     const envB = createEnv(
       baseDir,
-      'sa-mise-forwarder',
+      'sa-mise-session-start-a',
       downloadLogPath,
       mockBinDir,
       sharedRoot,
@@ -598,12 +598,12 @@ Deno.test('broken shared runtime is repaired from another peer mirror and stale 
     const pluginB = await createPluginFixture(
       baseDir,
       'session',
-      'sa-mise-forwarder',
+      'sa-mise-session-start-a',
     )
     const pluginC = await createPluginFixture(
       baseDir,
       'session',
-      'sa-mise-cross-plugin',
+      'sa-mise-session-start-b',
     )
     const { downloadLogPath, mockBinDir } = await createMockTooling(baseDir)
     const sharedRoot = sharedRootFromPluginRoot(pluginA.pluginRoot)
@@ -616,14 +616,14 @@ Deno.test('broken shared runtime is repaired from another peer mirror and stale 
     )
     const envB = createEnv(
       baseDir,
-      'sa-mise-forwarder',
+      'sa-mise-session-start-a',
       downloadLogPath,
       mockBinDir,
       sharedRoot,
     )
     const envC = createEnv(
       baseDir,
-      'sa-mise-cross-plugin',
+      'sa-mise-session-start-b',
       downloadLogPath,
       mockBinDir,
       sharedRoot,
@@ -699,7 +699,7 @@ Deno.test('SessionStart hook records plugin-specific samples through the shared 
   const baseDir = await Deno.makeTempDir()
 
   try {
-    const pluginName = 'sa-mise-cross-plugin'
+    const pluginName = 'sa-mise-session-start-b'
     const { pluginRoot } = await createPluginFixture(
       baseDir,
       'session',
@@ -724,14 +724,14 @@ Deno.test('SessionStart hook records plugin-specific samples through the shared 
     const logContents = await Deno.readTextFile(logPath)
 
     assertEquals(hookResult.success, true)
-    assertStringIncludes(logContents, 'plugin_name=sa-mise-cross-plugin')
+    assertStringIncludes(logContents, 'plugin_name=sa-mise-session-start-b')
     assertStringIncludes(logContents, 'plugin_data_source=live-env')
     assertStringIncludes(logContents, `shared_root=${sharedRoot}`)
     assertStringIncludes(logContents, 'shared_root_source=explicit-env')
     assertStringIncludes(logContents, 'hook_status=success')
     assertStringIncludes(
       logContents,
-      'sample_name=sa-mise-cross-plugin-session-start',
+      'sample_name=sa-mise-session-start-b-session-start',
     )
     assertStringIncludes(logContents, 'resolved_mise_path=')
     assertStringIncludes(logContents, 'mise_version=mise latest test')
@@ -746,7 +746,7 @@ Deno.test('SessionStart hook logs failures from the sample script with tracing c
   const baseDir = await Deno.makeTempDir()
 
   try {
-    const pluginName = 'sa-mise-forwarder'
+    const pluginName = 'sa-mise-session-start-a'
     const { pluginRoot } = await createPluginFixture(
       baseDir,
       'session',
@@ -779,7 +779,7 @@ throw new Error('hook sample exploded')
     const logContents = await Deno.readTextFile(logPath)
 
     assertEquals(hookResult.success, true)
-    assertStringIncludes(logContents, 'plugin_name=sa-mise-forwarder')
+    assertStringIncludes(logContents, 'plugin_name=sa-mise-session-start-a')
     assertStringIncludes(logContents, `shared_root=${sharedRoot}`)
     assertStringIncludes(logContents, 'shared_root_source=explicit-env')
     assertStringIncludes(logContents, 'hook_status=failure')

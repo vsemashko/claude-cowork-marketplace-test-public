@@ -1,8 +1,0 @@
-{
-  "name": "sa-mise-cross-plugin",
-  "version": "1.0.0",
-  "description": "Peer Cowork fixture that validates cross-plugin shared-runtime recovery with the same generated mise shim",
-  "author": {
-    "name": "Vladimir Semashko"
-  }
-}

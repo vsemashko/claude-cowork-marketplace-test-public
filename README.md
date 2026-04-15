@@ -4,8 +4,8 @@ This repository is a minimal Claude/Cowork test bundle with two surfaces:
 
 - three peer marketplace plugins that all ship the same generated `mise` shim:
   - `sa-mise`
-  - `sa-mise-forwarder`
-  - `sa-mise-cross-plugin`
+  - `sa-mise-session-start-a`
+  - `sa-mise-session-start-b`
 - `sa-cowork-config-mcp`, a separately packaged MCPB extension for config
   handling tests
 
@@ -15,8 +15,8 @@ The plugin intentionally does not package `stash`, `stashaway-agents`, a public
 ## Included Plugins
 
 - `sa-mise`
-- `sa-mise-forwarder`
-- `sa-mise-cross-plugin`
+- `sa-mise-session-start-a`
+- `sa-mise-session-start-b`
 
 ## Included MCPB Bundle
 
@@ -29,8 +29,8 @@ Add this repo as a marketplace source in Claude:
 - Repository: `vsemashko/claude-cowork-marketplace-test-public`
 - Marketplace plugins:
   - `sa-mise`
-  - `sa-mise-forwarder`
-  - `sa-mise-cross-plugin`
+  - `sa-mise-session-start-a`
+  - `sa-mise-session-start-b`
 
 The config MCPB is packaged separately and is not installed through the
 marketplace manifest.
@@ -72,9 +72,10 @@ Then install `dist/sa-cowork-config-mcp.mcpb` in Claude Desktop and configure:
 - the runtime installs the latest official `mise` binary on first use
 - runtime files never write into `${HOME}`
 - `sa-mise` is the direct shim fixture with no SessionStart hook sample
-- `sa-mise-forwarder` and `sa-mise-cross-plugin` each include a SessionStart
-  hook sample that proves `#!/usr/bin/env -S mise exec deno@latest -- deno run`
-  works for registered hooks too
+- `sa-mise-session-start-a` and `sa-mise-session-start-b` are symmetric
+  hook-enabled peer fixtures that prove
+  `#!/usr/bin/env -S mise exec deno@latest -- deno run` works for registered
+  hooks too
 - the hook samples emit a random number plus runtime details so trace logs are
   easy to inspect
 
@@ -83,8 +84,8 @@ Then install `dist/sa-cowork-config-mcp.mcpb` in Claude Desktop and configure:
 Each plugin exposes one minimal skill matching its plugin name:
 
 - `sa-mise`
-- `sa-mise-forwarder`
-- `sa-mise-cross-plugin`
+- `sa-mise-session-start-a`
+- `sa-mise-session-start-b`
 
 If Claude has already put the active plugin `bin/` directory on `PATH`, use
 `mise` directly:
@@ -118,8 +119,9 @@ ${CLAUDE_PLUGIN_ROOT}/bin/mise --version
    - `<shared-root>/.claude/plugins/shared-runtime/mise/${platform}/registry.json`
    - `${CLAUDE_PLUGIN_DATA}/runtime-mirror/mise/${platform}/install-status.env`
    - `${CLAUDE_PLUGIN_DATA}/state/cowork-plugin-context.env`
-5. For `sa-mise-forwarder` or `sa-mise-cross-plugin`, trigger SessionStart and
-   verify `${CLAUDE_PLUGIN_DATA}/logs/session-start.log` is written too.
+5. For `sa-mise-session-start-a` or `sa-mise-session-start-b`, trigger
+   SessionStart and verify `${CLAUDE_PLUGIN_DATA}/logs/session-start.log` is
+   written too.
 
 ## Where To Check Hook Logs
 

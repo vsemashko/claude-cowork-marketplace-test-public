@@ -38,6 +38,8 @@ ${CLAUDE_PLUGIN_ROOT}/bin/mise <args>
   `<shared-root>/.claude/plugins/shared-runtime/mise/<platform>/`
 - Any peer plugin may run first, recreate the shared symlink, or backfill its
   own mirror from shared state.
+- This fixture exists to prove SessionStart hook execution against the shared
+  runtime, not to exercise a unique shim strategy.
 - This fixture does not include a sample SessionStart hook.
 - Shared resolver diagnostics are captured here:
   `${CLAUDE_PLUGIN_DATA}/state/cowork-plugin-context.env`

@@ -1,0 +1,8 @@
+{
+  "name": "sa-mise-session-start-b",
+  "version": "1.0.0",
+  "description": "Peer Cowork fixture with a SessionStart sample that uses the same generated mise shim as every other peer",
+  "author": {
+    "name": "Vladimir Semashko"
+  }
+}
