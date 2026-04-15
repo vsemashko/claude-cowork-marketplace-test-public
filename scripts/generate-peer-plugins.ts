@@ -20,11 +20,12 @@ const PEER_PLUGINS: PluginDefinition[] = [
   {
     name: 'sa-mise',
     description:
-      'Peer Cowork fixture that bootstraps and shares the latest mise binary through the generated shared shim',
+      'Primary peer Cowork fixture that bootstraps and shares the latest mise binary through the generated shared shim',
     skillName: 'sa-mise',
     skillDescription:
       'Run the generated peer-safe mise shim exposed by this marketplace fixture.',
-    hasHookFixture: false,
+    sampleName: 'sa-mise-session-start',
+    hasHookFixture: true,
   },
   {
     name: 'sa-mise-session-start-a',
@@ -107,6 +108,7 @@ function createPluginJson(plugin: PluginDefinition): string {
         author: {
           name: OWNER.name,
         },
+        ...(plugin.hasHookFixture ? { hooks: './hooks/hooks.json' } : {}),
       },
       null,
       2,
@@ -116,13 +118,27 @@ function createPluginJson(plugin: PluginDefinition): string {
 
 function createSkillContent(plugin: PluginDefinition): string {
   const hookNotes = plugin.hasHookFixture
-    ? `- Registered hook logs are written here:
-  \`\${CLAUDE_PLUGIN_DATA}/logs/session-start.log\`
-- Shared resolver diagnostics are captured here:
+    ? `- Registered SessionStart hooks from all three peer fixtures append to:
+  \`~/.sa-mise-session-start.log\`
+- To inspect the shared hook trace, print the log directly:
+  \`cat ~/.sa-mise-session-start.log\`
+- Shared resolver diagnostics are still captured here for the shim itself:
   \`\${CLAUDE_PLUGIN_DATA}/state/cowork-plugin-context.env\``
     : `- This fixture does not include a sample SessionStart hook.
 - Shared resolver diagnostics are captured here:
   \`\${CLAUDE_PLUGIN_DATA}/state/cowork-plugin-context.env\``
+
+  const traceSection = plugin.name === 'sa-mise'
+    ? `
+## Hook Trace
+
+To print the shared SessionStart hook log from any peer fixture:
+
+\`\`\`bash
+cat ~/.sa-mise-session-start.log
+\`\`\`
+`
+    : ''
 
   return `---
 name: ${plugin.skillName}
@@ -167,6 +183,7 @@ If \`mise\` is not on \`PATH\`, fall back to the plugin-local shim path:
 - This fixture exists to prove SessionStart hook execution against the shared
   runtime, not to exercise a unique shim strategy.
 ${hookNotes}
+${traceSection}
 `
 }
 
@@ -178,18 +195,6 @@ function createSessionStartSample(plugin: PluginDefinition): string {
   }
 
   return `#!/usr/bin/env -S mise exec deno@latest -- deno run -A
-
-async function resolveMisePath(): Promise<string> {
-  const command = await new Deno.Command('sh', {
-    args: ['-lc', 'command -v mise'],
-    stdout: 'piped',
-    stderr: 'null',
-  }).output()
-
-  return new TextDecoder().decode(command.stdout).trim()
-}
-
-const randomValue = crypto.getRandomValues(new Uint32Array(1))[0]
 const miseVersion = await new Deno.Command('mise', {
   args: ['--version'],
   stdout: 'piped',
@@ -199,8 +204,6 @@ const miseStdout = new TextDecoder().decode(miseVersion.stdout).trim()
 
 console.log('sample_name=${plugin.sampleName}')
 console.log('plugin_name=${plugin.name}')
-console.log(\`random_value=\${randomValue}\`)
-console.log(\`resolved_mise_path=\${await resolveMisePath()}\`)
 console.log(\`mise_version=\${miseStdout}\`)
 console.log(\`deno_version=\${Deno.version.deno}\`)
 `

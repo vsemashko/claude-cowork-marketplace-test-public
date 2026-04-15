@@ -11,17 +11,12 @@ const PEER_PLUGIN_NAMES = [
   'sa-mise-session-start-a',
   'sa-mise-session-start-b',
 ] as const
-const HOOK_PLUGIN_NAMES = [
-  'sa-mise-session-start-a',
-  'sa-mise-session-start-b',
-] as const
-const HOOK_PLUGIN_NAME_SET = new Set<string>(HOOK_PLUGIN_NAMES)
 
 type PluginName = (typeof PEER_PLUGIN_NAMES)[number]
 type Layout = 'guest' | 'session'
 
 function hasHookFixture(pluginName: PluginName): boolean {
-  return HOOK_PLUGIN_NAME_SET.has(pluginName)
+  return PEER_PLUGIN_NAMES.includes(pluginName)
 }
 
 async function copyFileWithMode(src: string, dest: string): Promise<void> {
@@ -266,6 +261,10 @@ function stateFilePath(pluginDataRoot: string): string {
 
 function contextHelperPath(pluginRoot: string): string {
   return join(pluginRoot, 'scripts', 'cowork-plugin-context.sh')
+}
+
+function sharedHookLogPath(homeRoot: string): string {
+  return join(homeRoot, '.sa-mise-session-start.log')
 }
 
 function createEnv(
@@ -695,54 +694,64 @@ Deno.test('broken shared runtime is repaired from another peer mirror and stale 
   }
 })
 
-Deno.test('SessionStart hook records plugin-specific samples through the shared mise shim', async () => {
+Deno.test('all peer SessionStart hooks append sample output to the shared home log', async () => {
   const baseDir = await Deno.makeTempDir()
 
   try {
-    const pluginName = 'sa-mise-session-start-b'
-    const { pluginRoot } = await createPluginFixture(
+    const { downloadLogPath, mockBinDir } = await createMockTooling(baseDir)
+    const firstFixture = await createPluginFixture(
       baseDir,
       'session',
-      pluginName,
+      'sa-mise',
     )
-    const { downloadLogPath, mockBinDir } = await createMockTooling(baseDir)
-    const sharedRoot = sharedRootFromPluginRoot(pluginRoot)
-    const env = createEnv(
-      baseDir,
-      pluginName,
-      downloadLogPath,
-      mockBinDir,
-      sharedRoot,
-    )
+    const sharedRoot = sharedRootFromPluginRoot(firstFixture.pluginRoot)
+    const sharedLog = sharedHookLogPath(join(baseDir, 'home'))
 
-    const hookResult = await runCommand(
-      join(pluginRoot, 'hooks', 'session-start.sh'),
-      [],
-      env,
-    )
-    const logPath = join(env.CLAUDE_PLUGIN_DATA, 'logs', 'session-start.log')
-    const logContents = await Deno.readTextFile(logPath)
+    for (const pluginName of PEER_PLUGIN_NAMES) {
+      const { pluginRoot } = pluginName === 'sa-mise'
+        ? firstFixture
+        : await createPluginFixture(baseDir, 'session', pluginName)
+      const env = createEnv(
+        baseDir,
+        pluginName,
+        downloadLogPath,
+        mockBinDir,
+        sharedRoot,
+      )
 
-    assertEquals(hookResult.success, true)
-    assertStringIncludes(logContents, 'plugin_name=sa-mise-session-start-b')
-    assertStringIncludes(logContents, 'plugin_data_source=live-env')
-    assertStringIncludes(logContents, `shared_root=${sharedRoot}`)
-    assertStringIncludes(logContents, 'shared_root_source=explicit-env')
+      const hookResult = await runCommand(
+        join(pluginRoot, 'hooks', 'session-start.sh'),
+        [],
+        env,
+      )
+
+      assertEquals(hookResult.success, true)
+    }
+
+    const logContents = await Deno.readTextFile(sharedLog)
+
+    assertEquals(await exists(sharedLog), true)
     assertStringIncludes(logContents, 'hook_status=success')
+    assertStringIncludes(logContents, 'plugin_name=sa-mise')
+    assertStringIncludes(logContents, 'sample_name=sa-mise-session-start')
+    assertStringIncludes(logContents, 'plugin_name=sa-mise-session-start-a')
+    assertStringIncludes(
+      logContents,
+      'sample_name=sa-mise-session-start-a-session-start',
+    )
+    assertStringIncludes(logContents, 'plugin_name=sa-mise-session-start-b')
     assertStringIncludes(
       logContents,
       'sample_name=sa-mise-session-start-b-session-start',
     )
-    assertStringIncludes(logContents, 'resolved_mise_path=')
     assertStringIncludes(logContents, 'mise_version=mise latest test')
     assertStringIncludes(logContents, 'deno_version=')
-    assertStringIncludes(logContents, 'random_value=')
   } finally {
     await Deno.remove(baseDir, { recursive: true })
   }
 })
 
-Deno.test('SessionStart hook logs failures from the sample script with tracing context', async () => {
+Deno.test('SessionStart hook logs failures from the sample script into the shared home log', async () => {
   const baseDir = await Deno.makeTempDir()
 
   try {
@@ -775,15 +784,13 @@ throw new Error('hook sample exploded')
       [],
       env,
     )
-    const logPath = join(env.CLAUDE_PLUGIN_DATA, 'logs', 'session-start.log')
+    const logPath = sharedHookLogPath(env.HOME)
     const logContents = await Deno.readTextFile(logPath)
 
     assertEquals(hookResult.success, true)
     assertStringIncludes(logContents, 'plugin_name=sa-mise-session-start-a')
-    assertStringIncludes(logContents, `shared_root=${sharedRoot}`)
-    assertStringIncludes(logContents, 'shared_root_source=explicit-env')
     assertStringIncludes(logContents, 'hook_status=failure')
-    assertStringIncludes(logContents, 'hook_error=')
+    assertStringIncludes(logContents, 'Error: hook sample exploded')
   } finally {
     await Deno.remove(baseDir, { recursive: true })
   }

@@ -11,7 +11,7 @@
   "plugins": [
     {
       "name": "sa-mise",
-      "description": "Peer Cowork fixture that bootstraps and shares the latest mise binary through the generated shared shim",
+      "description": "Primary peer Cowork fixture that bootstraps and shares the latest mise binary through the generated shared shim",
       "version": "1.0.0",
       "category": "core",
       "source": "./plugins/sa-mise",

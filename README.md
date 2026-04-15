@@ -71,13 +71,14 @@ Then install `dist/sa-cowork-config-mcp.mcpb` in Claude Desktop and configure:
   `${CLAUDE_PLUGIN_DATA}/state/cowork-plugin-context.env`
 - the runtime installs the latest official `mise` binary on first use
 - runtime files never write into `${HOME}`
-- `sa-mise` is the direct shim fixture with no SessionStart hook sample
-- `sa-mise-session-start-a` and `sa-mise-session-start-b` are symmetric
+- all three peer fixtures now register the same minimal SessionStart hook shape
+  and append to one shared home log at: `~/.sa-mise-session-start.log`
+- `sa-mise-session-start-a` and `sa-mise-session-start-b` remain symmetric
   hook-enabled peer fixtures that prove
   `#!/usr/bin/env -S mise exec deno@latest -- deno run` works for registered
   hooks too
-- the hook samples emit a random number plus runtime details so trace logs are
-  easy to inspect
+- the hook samples emit plugin name, sample name, `mise` version, and `deno`
+  version so the shared trace log is easy to inspect
 
 ## Skill
 
@@ -119,31 +120,25 @@ ${CLAUDE_PLUGIN_ROOT}/bin/mise --version
    - `<shared-root>/.claude/plugins/shared-runtime/mise/${platform}/registry.json`
    - `${CLAUDE_PLUGIN_DATA}/runtime-mirror/mise/${platform}/install-status.env`
    - `${CLAUDE_PLUGIN_DATA}/state/cowork-plugin-context.env`
-5. For `sa-mise-session-start-a` or `sa-mise-session-start-b`, trigger
-   SessionStart and verify `${CLAUDE_PLUGIN_DATA}/logs/session-start.log` is
-   written too.
+5. Trigger SessionStart from any of the three peer fixtures and verify
+   `~/.sa-mise-session-start.log` is written.
 
 ## Where To Check Hook Logs
 
-The SessionStart hook writes:
+All three peer fixtures append to one shared hook log:
 
-- append-only hook log: `${CLAUDE_PLUGIN_DATA}/logs/session-start.log`
+- append-only hook log: `~/.sa-mise-session-start.log`
 
 The log file is intentionally minimal. It records:
 
 - `timestamp`
-- `plugin_name`
-- `plugin_data_source`
-- `shared_root`
-- `shared_root_source`
 - `hook_status`
+- `plugin_name`
 - `sample_name`
-- `random_value`
-- `resolved_mise_path`
 - `mise_version`
 - `deno_version`
 
-The shared resolver state is also captured in:
+The shim still captures shared resolver state separately in:
 
 - `${CLAUDE_PLUGIN_DATA}/state/cowork-plugin-context.env`
 

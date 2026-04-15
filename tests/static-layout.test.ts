@@ -7,11 +7,6 @@ const PEER_PLUGIN_NAMES = [
   'sa-mise-session-start-a',
   'sa-mise-session-start-b',
 ] as const
-const HOOK_PLUGIN_NAMES = [
-  'sa-mise-session-start-a',
-  'sa-mise-session-start-b',
-] as const
-const HOOK_PLUGIN_NAME_SET = new Set<string>(HOOK_PLUGIN_NAMES)
 
 const REPO_ROOT = Deno.cwd()
 
@@ -60,7 +55,7 @@ Deno.test('peer plugins ship identical generated shims and shared helpers', asyn
       true,
     )
     assertEquals(pluginConfig.name, pluginName)
-    assertEquals(pluginConfig.hooks, undefined)
+    assertEquals(pluginConfig.hooks, './hooks/hooks.json')
     assertEquals(await exists(join(pluginRoot, 'bin', 'mise')), true)
     assertEquals(
       await exists(join(pluginRoot, 'scripts', 'cowork-shared-runtime.sh')),
@@ -76,7 +71,7 @@ Deno.test('peer plugins ship identical generated shims and shared helpers', asyn
     )
     assertEquals(
       await exists(join(pluginRoot, 'scripts', 'session-start-sample.ts')),
-      HOOK_PLUGIN_NAME_SET.has(pluginName),
+      true,
     )
     assertEquals(
       await exists(join(pluginRoot, 'skills', pluginName, 'SKILL.md')),
@@ -84,11 +79,11 @@ Deno.test('peer plugins ship identical generated shims and shared helpers', asyn
     )
     assertEquals(
       await exists(join(pluginRoot, 'hooks', 'session-start.sh')),
-      HOOK_PLUGIN_NAME_SET.has(pluginName),
+      true,
     )
     assertEquals(
       await exists(join(pluginRoot, 'hooks', 'hooks.json')),
-      HOOK_PLUGIN_NAME_SET.has(pluginName),
+      true,
     )
     assertEquals(
       await exists(join(pluginRoot, 'hooks', 'session-start.ts')),

@@ -40,7 +40,9 @@ ${CLAUDE_PLUGIN_ROOT}/bin/mise <args>
   own mirror from shared state.
 - This fixture exists to prove SessionStart hook execution against the shared
   runtime, not to exercise a unique shim strategy.
-- Registered hook logs are written here:
-  `${CLAUDE_PLUGIN_DATA}/logs/session-start.log`
-- Shared resolver diagnostics are captured here:
+- Registered SessionStart hooks from all three peer fixtures append to:
+  `~/.sa-mise-session-start.log`
+- To inspect the shared hook trace, print the log directly:
+  `cat ~/.sa-mise-session-start.log`
+- Shared resolver diagnostics are still captured here for the shim itself:
   `${CLAUDE_PLUGIN_DATA}/state/cowork-plugin-context.env`
