@@ -92,6 +92,9 @@ Then install `dist/sa-cowork-config-mcp.mcpb` in Claude Desktop and configure:
 - `CLAUDE_ENV_FILE` should be treated as the source of persisted session env;
   `sa-mise-session-start-c` probes whether that env becomes visible to later
   hook processes as well
+- every hook command appends one compact result line to:
+  `${CLAUDE_PROJECT_DIR}/.sa-mise-hook-results.log` with `plugin`, `event`,
+  `hook`, and `status`
 
 ## Skill
 
@@ -141,6 +144,8 @@ ${CLAUDE_PLUGIN_ROOT}/bin/mise --version
 7. Trigger `UserPromptSubmit` and verify `sa-mise-session-start-c` can run bare
    `mise` without sourcing `CLAUDE_ENV_FILE`, proving those exports are visible
    to later hook processes.
+8. Inspect `${CLAUDE_PROJECT_DIR}/.sa-mise-hook-results.log` to confirm which
+   hook probe succeeded or failed.
 
 ## Shared Resolver State
 

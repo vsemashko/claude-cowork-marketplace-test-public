@@ -207,6 +207,10 @@ Deno.test('peer plugins ship identical generated shims and shared helpers', asyn
       hookCommands[pluginName].includes('.sa-mise-session-start.log'),
       false,
     )
+    assertEquals(
+      hookCommands[pluginName].includes('.sa-mise-hook-results.log'),
+      true,
+    )
     if (pluginName !== 'sa-mise' && pluginName !== 'sa-mise-session-start-c') {
       assertEquals(
         hookCommands[pluginName].includes('>/dev/null 2>&1'),
@@ -219,10 +223,15 @@ Deno.test('peer plugins ship identical generated shims and shared helpers', asyn
     hookCommands['sa-mise'].includes('session-start-sa-mise.sh'),
     true,
   )
+  assertEquals(hookCommands['sa-mise'].includes('"runtime-probe"'), true)
   assertEquals(
     hookCommands['sa-mise-session-start-a'].includes(
       'PATH="${CLAUDE_PLUGIN_ROOT:-}/bin:${PATH}"',
     ),
+    true,
+  )
+  assertEquals(
+    hookCommands['sa-mise-session-start-a'].includes('"path-probe"'),
     true,
   )
   assertEquals(
@@ -232,12 +241,22 @@ Deno.test('peer plugins ship identical generated shims and shared helpers', asyn
     true,
   )
   assertEquals(
+    hookCommands['sa-mise-session-start-b'].includes('"sibling-probe"'),
+    true,
+  )
+  assertEquals(
     hookCommands['sa-mise-session-start-b'].includes('plugin_parent='),
     false,
   )
   assertEquals(
     hookCommands['sa-mise-session-start-c'].includes(
       'user-prompt-submit-sa-mise.sh',
+    ),
+    true,
+  )
+  assertEquals(
+    hookCommands['sa-mise-session-start-c'].includes(
+      '"inherited-env-and-path-probe"',
     ),
     true,
   )

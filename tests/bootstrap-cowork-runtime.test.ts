@@ -8,6 +8,7 @@ const SESSION_NAME = 'determined-kind-cerf'
 const SHARED_ROOT_ENV_VAR = 'CLAUDE_COWORK_SHARED_ROOT'
 const SESSION_ENV_PROBE_VAR = 'SA_MISE_SESSION_ENV_PROBE'
 const SESSION_ENV_PROBE_VALUE = 'visible-from-session-start'
+const HOOK_RESULTS_LOG_NAME = '.sa-mise-hook-results.log'
 const PEER_PLUGIN_NAMES = [
   'sa-mise',
   'sa-mise-session-start-a',
@@ -285,6 +286,10 @@ function sharedRegistryPath(
     platform,
     'registry.json',
   )
+}
+
+function hookResultsLogPath(baseDir: string): string {
+  return join(baseDir, 'project', HOOK_RESULTS_LOG_NAME)
 }
 
 function stateFilePath(pluginDataRoot: string): string {
@@ -846,6 +851,19 @@ Deno.test('peer SessionStart hooks that do not depend on CLAUDE_ENV_FILE execute
       (await Deno.readTextFile(downloadLogPath)).trim().split('\n').length,
       1,
     )
+    const hookLog = await Deno.readTextFile(hookResultsLogPath(baseDir))
+    assertStringIncludes(
+      hookLog,
+      'plugin=sa-mise event=SessionStart hook=runtime-probe status=success',
+    )
+    assertStringIncludes(
+      hookLog,
+      'plugin=sa-mise-session-start-a event=SessionStart hook=path-probe status=success',
+    )
+    assertStringIncludes(
+      hookLog,
+      'plugin=sa-mise-session-start-b event=SessionStart hook=sibling-probe status=success',
+    )
   } finally {
     await Deno.remove(baseDir, { recursive: true })
   }
@@ -876,6 +894,10 @@ Deno.test('sa-mise-session-start-b fails clearly when the sibling sa-mise plugin
 
     assertEquals(hookResult.success, false)
     assertStringIncludes(stderr, 'sa-mise plugin not found')
+    assertStringIncludes(
+      await Deno.readTextFile(hookResultsLogPath(baseDir)),
+      'plugin=sa-mise-session-start-b event=SessionStart hook=sibling-probe status=failure exit_code=1',
+    )
   } finally {
     await Deno.remove(baseDir, { recursive: true })
   }
@@ -964,6 +986,15 @@ Deno.test('sa-mise writes PATH and probe env into CLAUDE_ENV_FILE and session-st
     )
 
     assertEquals(hookResultAfter.success, true)
+    const hookLog = await Deno.readTextFile(hookResultsLogPath(baseDir))
+    assertStringIncludes(
+      hookLog,
+      'plugin=sa-mise-session-start-c event=UserPromptSubmit hook=inherited-env-and-path-probe status=failure exit_code=1',
+    )
+    assertStringIncludes(
+      hookLog,
+      'plugin=sa-mise-session-start-c event=UserPromptSubmit hook=inherited-env-and-path-probe status=success',
+    )
   } finally {
     await Deno.remove(baseDir, { recursive: true })
   }

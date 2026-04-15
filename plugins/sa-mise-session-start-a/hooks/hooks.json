@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "PATH=\"${CLAUDE_PLUGIN_ROOT:-}/bin:${PATH}\" mise exec deno@latest -- deno eval 'Deno.exit(0)' >/dev/null 2>&1"
+            "command": "hook_results_log=\"${CLAUDE_PROJECT_DIR:-${PWD:-.}}/.sa-mise-hook-results.log\"\nmkdir -p \"$(dirname \"$hook_results_log\")\"\nif\nPATH=\"${CLAUDE_PLUGIN_ROOT:-}/bin:${PATH}\" mise exec deno@latest -- deno eval 'Deno.exit(0)' >/dev/null 2>&1\nthen\n  printf 'plugin=%s event=%s hook=%s status=success\\n' \"sa-mise-session-start-a\" \"SessionStart\" \"path-probe\" >> \"$hook_results_log\"\nelse\n  status=$?\n  printf 'plugin=%s event=%s hook=%s status=failure exit_code=%s\\n' \"sa-mise-session-start-a\" \"SessionStart\" \"path-probe\" \"$status\" >> \"$hook_results_log\"\n  exit \"$status\"\nfi"
           }
         ]
       }

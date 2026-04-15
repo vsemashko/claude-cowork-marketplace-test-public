@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT:-}/scripts/user-prompt-submit-sa-mise.sh\""
+            "command": "hook_results_log=\"${CLAUDE_PROJECT_DIR:-${PWD:-.}}/.sa-mise-hook-results.log\"\nmkdir -p \"$(dirname \"$hook_results_log\")\"\nif\n\"${CLAUDE_PLUGIN_ROOT:-}/scripts/user-prompt-submit-sa-mise.sh\"\nthen\n  printf 'plugin=%s event=%s hook=%s status=success\\n' \"sa-mise-session-start-c\" \"UserPromptSubmit\" \"inherited-env-and-path-probe\" >> \"$hook_results_log\"\nelse\n  status=$?\n  printf 'plugin=%s event=%s hook=%s status=failure exit_code=%s\\n' \"sa-mise-session-start-c\" \"UserPromptSubmit\" \"inherited-env-and-path-probe\" \"$status\" >> \"$hook_results_log\"\n  exit \"$status\"\nfi"
           }
         ]
       }

@@ -10,6 +10,7 @@ type PluginDefinition = {
   hookSummary?: string
   hooks?: Array<{
     event: 'SessionStart' | 'CwdChanged' | 'FileChanged' | 'UserPromptSubmit'
+    label: string
     matcher?: string
     command: string
   }>
@@ -19,6 +20,7 @@ type PluginDefinition = {
 const VERSION = '1.0.0'
 const SESSION_ENV_PROBE_VAR = 'SA_MISE_SESSION_ENV_PROBE'
 const SESSION_ENV_PROBE_VALUE = 'visible-from-session-start'
+const HOOK_RESULTS_LOG_NAME = '.sa-mise-hook-results.log'
 const OWNER = {
   name: 'Vladimir Semashko',
   email: 'vsemashko@gmail.com',
@@ -38,6 +40,7 @@ const PEER_PLUGINS: PluginDefinition[] = [
     hooks: [
       {
         event: 'SessionStart',
+        label: 'runtime-probe',
         matcher: '',
         command: '"${CLAUDE_PLUGIN_ROOT:-}/scripts/session-start-sa-mise.sh"',
       },
@@ -76,6 +79,7 @@ const PEER_PLUGINS: PluginDefinition[] = [
     hooks: [
       {
         event: 'SessionStart',
+        label: 'path-probe',
         matcher: '',
         command:
           'PATH="${CLAUDE_PLUGIN_ROOT:-}/bin:${PATH}" mise exec deno@latest -- deno eval \'Deno.exit(0)\' >/dev/null 2>&1',
@@ -95,6 +99,7 @@ const PEER_PLUGINS: PluginDefinition[] = [
     hooks: [
       {
         event: 'SessionStart',
+        label: 'sibling-probe',
         matcher: '',
         command: [
           'sibling_root="$("${CLAUDE_PLUGIN_ROOT:-}/scripts/find-sa-mise-sibling.sh")"',
@@ -145,6 +150,7 @@ const PEER_PLUGINS: PluginDefinition[] = [
     hooks: [
       {
         event: 'UserPromptSubmit',
+        label: 'inherited-env-and-path-probe',
         matcher: '',
         command:
           '"${CLAUDE_PLUGIN_ROOT:-}/scripts/user-prompt-submit-sa-mise.sh"',
@@ -211,6 +217,25 @@ async function copySharedTemplate(
   )
 }
 
+function wrapHookCommand(
+  pluginName: string,
+  hook: NonNullable<PluginDefinition['hooks']>[number],
+): string {
+  return [
+    `hook_results_log="\${CLAUDE_PROJECT_DIR:-\${PWD:-.}}/${HOOK_RESULTS_LOG_NAME}"`,
+    'mkdir -p "$(dirname "$hook_results_log")"',
+    'if',
+    hook.command,
+    'then',
+    `  printf 'plugin=%s event=%s hook=%s status=success\\n' "${pluginName}" "${hook.event}" "${hook.label}" >> "$hook_results_log"`,
+    'else',
+    '  status=$?',
+    `  printf 'plugin=%s event=%s hook=%s status=failure exit_code=%s\\n' "${pluginName}" "${hook.event}" "${hook.label}" "$status" >> "$hook_results_log"`,
+    '  exit "$status"',
+    'fi',
+  ].join('\n')
+}
+
 function createPluginJson(plugin: PluginDefinition): string {
   return `${
     JSON.stringify(
@@ -241,7 +266,10 @@ function createHooksJson(plugin: PluginDefinition): string {
     hooksByEvent[hook.event] ??= []
     hooksByEvent[hook.event].push({
       matcher: hook.matcher ?? '',
-      hooks: [{ type: 'command', command: hook.command }],
+      hooks: [{
+        type: 'command',
+        command: wrapHookCommand(plugin.name, hook),
+      }],
     })
   }
 
