@@ -1,7 +1,7 @@
 {
   "name": "sa-mise",
   "version": "1.0.0",
-  "description": "Minimal Claude plugin that bootstraps the latest mise binary into plugin data",
+  "description": "Peer Cowork fixture that bootstraps and shares the latest mise binary through the generated shared shim",
   "author": {
     "name": "Vladimir Semashko"
   }

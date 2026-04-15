@@ -1,18 +1,18 @@
 # sa-mise Marketplace
 
-This repository is a minimal Claude/Cowork test bundle with four surfaces:
+This repository is a minimal Claude/Cowork test bundle with two surfaces:
 
-- `sa-mise`, a marketplace plugin that ships a transparent `mise` shim
-- `sa-mise-forwarder`, a consumer plugin with its own forwarding `mise` shim
-- `sa-mise-cross-plugin`, an experimental consumer plugin that tries peer/PATH
-  discovery before falling back to shared Cowork runtime state
+- three peer marketplace plugins that all ship the same generated `mise` shim:
+  - `sa-mise`
+  - `sa-mise-forwarder`
+  - `sa-mise-cross-plugin`
 - `sa-cowork-config-mcp`, a separately packaged MCPB extension for config
   handling tests
 
 The plugin intentionally does not package `stash`, `stashaway-agents`, a public
 `deno` shim, or any StashAway-private download logic.
 
-## Included Plugin
+## Included Plugins
 
 - `sa-mise`
 - `sa-mise-forwarder`
@@ -52,57 +52,37 @@ Then install `dist/sa-cowork-config-mcp.mcpb` in Claude Desktop and configure:
 - `dd_site`
 - `gitlab_token`
 
-## What The Plugin Does
+## What The Peer Plugins Do
 
-- ships a committed shim at `${CLAUDE_PLUGIN_ROOT}/bin/mise`
-- resolves plugin root from the shim path itself
-- resolves plugin data in this order:
-  - live `CLAUDE_PLUGIN_DATA`
-  - shared Cowork session state
-  - deterministic session-layout discovery
-- captures shared resolver diagnostics in
+- `deno task generate` stamps identical shared shim assets into all three peer
+  plugins from one source template
+- every peer ships the same committed shim at `${CLAUDE_PLUGIN_ROOT}/bin/mise`
+- each plugin keeps a durable local mirror at:
+  `${CLAUDE_PLUGIN_DATA}/runtime-mirror/mise/${platform}/`
+- all peers converge on the same shared session runtime at:
+  `<shared-root>/.claude/plugins/shared-runtime/mise/${platform}/current/mise`
+- any plugin may execute first, recreate the shared symlink, or backfill its own
+  local mirror from the shared runtime
+- shared registry state is stored at:
+  `<shared-root>/.claude/plugins/shared-runtime/mise/${platform}/registry.json`
+- shared resolver diagnostics are captured in:
   `${CLAUDE_PLUGIN_DATA}/state/cowork-plugin-context.env`
-- installs the latest official `mise` binary on first use
-- caches the binary under `${CLAUDE_PLUGIN_DATA}/${platform}/bin/mise`
-- reuses the cached binary until the plugin cache is deleted
-- never writes runtime files into `${HOME}`
-- includes a SessionStart hook sample that proves
+- the runtime installs the latest official `mise` binary on first use
+- runtime files never write into `${HOME}`
+- each peer includes a SessionStart hook sample that proves
   `#!/usr/bin/env -S mise exec deno@latest -- deno run` works for registered
   hooks too
 
-## Consumer Plugin Contract
-
-Install `sa-mise` first, then add either or both consumer plugins manually.
-There is no automatic marketplace dependency mechanism in this repo.
-
-- `sa-mise-forwarder` is the reliable consumer path.
-- `sa-mise-cross-plugin` is the experimental path-research consumer.
-
-## PATH Strategy Matrix
-
-This repo exercises three ways to make `mise` discoverable for shebang hooks:
-
-- Documented Claude behavior: enabled plugin-local `bin/` directories are added
-  to the Bash tool `PATH`
-- Reliable hook approach: a launcher script mutates `PATH` before executing a
-  TypeScript shebang hook
-- Reliable reuse approach: `sa-mise-forwarder` ships a local `bin/mise` that
-  forwards to the warmed `sa-mise` runtime in shared Cowork plugin data
-- Experimental approach: `sa-mise-cross-plugin` first tries to find `mise` from
-  another plugin already on `PATH`, then falls back to the shared install marker
-- Official `mise` guidance: `mise exec` is the recommended scripted execution
-  model; shell activation and shims are broader interactive PATH strategies
-
 ## Skill
 
-The marketplace exposes these minimal skills:
+Each plugin exposes one minimal skill matching its plugin name:
 
 - `sa-mise`
 - `sa-mise-forwarder`
 - `sa-mise-cross-plugin`
 
-If Claude has already put the plugin `bin/` directory on `PATH`, use `mise`
-directly:
+If Claude has already put the active plugin `bin/` directory on `PATH`, use
+`mise` directly:
 
 ```bash
 mise --version
@@ -120,16 +100,6 @@ If `mise` is not yet on `PATH`, the fallback is the plugin-local shim path:
 ${CLAUDE_PLUGIN_ROOT}/bin/mise --version
 ```
 
-For the reliable consumer path, install `sa-mise-forwarder` and let its hook
-launcher prepend the plugin-local `bin/` directory before running the shebang
-script.
-
-For the experimental consumer path, install `sa-mise-cross-plugin`. It records
-whether it used:
-
-- `path`
-- `install-marker`
-
 ## Manual Acceptance
 
 1. Install the marketplace from this GitHub repo.
@@ -138,28 +108,18 @@ whether it used:
 3. Run `mise --version`. If `mise` is not yet on `PATH`, use
    `${CLAUDE_PLUGIN_ROOT}/bin/mise --version`.
 4. Verify the command succeeds and creates:
-   - `${CLAUDE_PLUGIN_DATA}/${platform}/bin/mise`
-   - `${CLAUDE_PLUGIN_DATA}/${platform}/install-status.txt`
+   - `${CLAUDE_PLUGIN_DATA}/runtime-mirror/mise/${platform}/bin/mise`
+   - `<shared-root>/.claude/plugins/shared-runtime/mise/${platform}/current/mise`
+   - `<shared-root>/.claude/plugins/shared-runtime/mise/${platform}/registry.json`
+   - `${CLAUDE_PLUGIN_DATA}/runtime-mirror/mise/${platform}/install-status.env`
    - `${CLAUDE_PLUGIN_DATA}/logs/session-start.log`
    - `${CLAUDE_PLUGIN_DATA}/state/cowork-plugin-context.env`
-5. Install `sa-mise-forwarder` or `sa-mise-cross-plugin`.
-6. Trigger the consumer hook and verify the log records:
-   - `sample_name`
-   - `path_strategy`
-   - `resolved_mise_path`
-   - `mise_version`
-   - `deno_version`
-   - `hook_status`
 
 ## Where To Check Hook Logs
 
 The SessionStart hook writes:
 
 - append-only hook log: `${CLAUDE_PLUGIN_DATA}/logs/session-start.log`
-- forwarder hook log:
-  `${CLAUDE_PLUGIN_DATA}/logs/sa-mise-forwarder-session-start.log`
-- cross-plugin hook log:
-  `${CLAUDE_PLUGIN_DATA}/logs/sa-mise-cross-plugin-session-start.log`
 
 The log file is intentionally minimal. It records:
 
@@ -167,8 +127,6 @@ The log file is intentionally minimal. It records:
 - `plugin_data_source`
 - `hook_status`
 - `sample_name`
-- `path_strategy`
-- `resolved_mise_path`
 - `mise_version`
 - `deno_version`
 
@@ -178,9 +136,10 @@ The shared resolver state is also captured in:
 
 ## Local Validation
 
-This repo ships lightweight Deno tests for the static layout and `mise` shim
+This repo ships lightweight Deno tests for the static layout and shared `mise`
 bootstrap behavior.
 
 ```bash
+mise exec -- deno task generate
 mise exec -- deno test --allow-all
 ```

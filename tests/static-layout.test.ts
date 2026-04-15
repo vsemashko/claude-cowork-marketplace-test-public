@@ -2,125 +2,120 @@ import { assertEquals } from '@std/assert'
 import { exists } from '@std/fs'
 import { join } from '@std/path'
 
-Deno.test('marketplace manifest advertises all three sa-mise plugins', async () => {
+const PEER_PLUGIN_NAMES = [
+  'sa-mise',
+  'sa-mise-forwarder',
+  'sa-mise-cross-plugin',
+] as const
+
+const REPO_ROOT = Deno.cwd()
+
+Deno.test('marketplace manifest advertises the three peer sa-mise fixtures', async () => {
   const manifest = JSON.parse(
     await Deno.readTextFile(
-      join(Deno.cwd(), '.claude-plugin', 'marketplace.json'),
+      join(REPO_ROOT, '.claude-plugin', 'marketplace.json'),
     ),
   ) as { plugins: Array<{ name: string; source: string }> }
 
-  assertEquals(manifest.plugins.length, 3)
-  assertEquals(manifest.plugins[0]?.name, 'sa-mise')
-  assertEquals(manifest.plugins[0]?.source, './plugins/sa-mise')
-  assertEquals(manifest.plugins[1]?.name, 'sa-mise-forwarder')
-  assertEquals(manifest.plugins[1]?.source, './plugins/sa-mise-forwarder')
-  assertEquals(manifest.plugins[2]?.name, 'sa-mise-cross-plugin')
-  assertEquals(manifest.plugins[2]?.source, './plugins/sa-mise-cross-plugin')
-})
-
-Deno.test('sa-mise plugin ships the expected minimal assets', async () => {
-  const pluginRoot = join(Deno.cwd(), 'plugins', 'sa-mise')
-  const pluginConfig = JSON.parse(
-    await Deno.readTextFile(join(pluginRoot, '.claude-plugin', 'plugin.json')),
-  ) as { hooks?: string }
-
   assertEquals(
-    await exists(join(pluginRoot, '.claude-plugin', 'plugin.json')),
-    true,
-  )
-  assertEquals(pluginConfig.hooks, undefined)
-  assertEquals(await exists(join(pluginRoot, 'bin', 'mise')), true)
-  assertEquals(
-    await exists(join(pluginRoot, 'scripts', 'runtime-shim.sh')),
-    true,
+    manifest.plugins.map((plugin) => plugin.name),
+    [...PEER_PLUGIN_NAMES],
   )
   assertEquals(
-    await exists(join(pluginRoot, 'scripts', 'cowork-plugin-context.sh')),
-    true,
-  )
-  assertEquals(
-    await exists(join(pluginRoot, 'scripts', 'session-start-sample.ts')),
-    true,
-  )
-  assertEquals(
-    await exists(join(pluginRoot, 'skills', 'sa-mise', 'SKILL.md')),
-    true,
-  )
-  assertEquals(await exists(join(pluginRoot, 'hooks', 'hooks.json')), true)
-  assertEquals(
-    await exists(join(pluginRoot, 'hooks', 'session-start.sh')),
-    true,
-  )
-  assertEquals(await exists(join(pluginRoot, 'bin', 'deno')), false)
-  assertEquals(await exists(join(pluginRoot, 'deps')), false)
-})
-
-Deno.test('sa-mise-forwarder plugin ships the expected forwarder assets', async () => {
-  const pluginRoot = join(Deno.cwd(), 'plugins', 'sa-mise-forwarder')
-  const pluginConfig = JSON.parse(
-    await Deno.readTextFile(join(pluginRoot, '.claude-plugin', 'plugin.json')),
-  ) as { hooks?: string }
-
-  assertEquals(
-    await exists(join(pluginRoot, '.claude-plugin', 'plugin.json')),
-    true,
-  )
-  assertEquals(pluginConfig.hooks, undefined)
-  assertEquals(await exists(join(pluginRoot, 'bin', 'mise')), true)
-  assertEquals(
-    await exists(join(pluginRoot, 'scripts', 'cowork-plugin-context.sh')),
-    true,
-  )
-  assertEquals(await exists(join(pluginRoot, 'hooks', 'hooks.json')), true)
-  assertEquals(
-    await exists(join(pluginRoot, 'hooks', 'session-start.sh')),
-    true,
-  )
-  assertEquals(
-    await exists(join(pluginRoot, 'hooks', 'session-start.ts')),
-    true,
-  )
-  assertEquals(
-    await exists(join(pluginRoot, 'skills', 'sa-mise-forwarder', 'SKILL.md')),
-    true,
+    manifest.plugins.map((plugin) => plugin.source),
+    PEER_PLUGIN_NAMES.map((pluginName) => `./plugins/${pluginName}`),
   )
 })
 
-Deno.test('sa-mise-cross-plugin ships the expected experimental assets', async () => {
-  const pluginRoot = join(Deno.cwd(), 'plugins', 'sa-mise-cross-plugin')
-  const pluginConfig = JSON.parse(
-    await Deno.readTextFile(join(pluginRoot, '.claude-plugin', 'plugin.json')),
-  ) as { hooks?: string }
+Deno.test('peer plugins ship identical generated shims and shared helpers', async () => {
+  const firstPluginRoot = join(REPO_ROOT, 'plugins', PEER_PLUGIN_NAMES[0])
+  const baselineBin = await Deno.readTextFile(
+    join(firstPluginRoot, 'bin', 'mise'),
+  )
+  const baselineRuntime = await Deno.readTextFile(
+    join(firstPluginRoot, 'scripts', 'cowork-shared-runtime.sh'),
+  )
+  const baselineCommon = await Deno.readTextFile(
+    join(firstPluginRoot, 'scripts', 'cowork-runtime-common.sh'),
+  )
+  const baselineContext = await Deno.readTextFile(
+    join(firstPluginRoot, 'scripts', 'cowork-plugin-context.sh'),
+  )
 
-  assertEquals(
-    await exists(join(pluginRoot, '.claude-plugin', 'plugin.json')),
-    true,
-  )
-  assertEquals(pluginConfig.hooks, undefined)
-  assertEquals(await exists(join(pluginRoot, 'bin', 'mise')), false)
-  assertEquals(
-    await exists(join(pluginRoot, 'scripts', 'cowork-plugin-context.sh')),
-    true,
-  )
-  assertEquals(await exists(join(pluginRoot, 'hooks', 'hooks.json')), true)
-  assertEquals(
-    await exists(join(pluginRoot, 'hooks', 'session-start.sh')),
-    true,
-  )
-  assertEquals(
-    await exists(join(pluginRoot, 'hooks', 'session-start.ts')),
-    true,
-  )
-  assertEquals(
-    await exists(
-      join(pluginRoot, 'skills', 'sa-mise-cross-plugin', 'SKILL.md'),
-    ),
-    true,
-  )
+  for (const pluginName of PEER_PLUGIN_NAMES) {
+    const pluginRoot = join(REPO_ROOT, 'plugins', pluginName)
+    const pluginConfig = JSON.parse(
+      await Deno.readTextFile(
+        join(pluginRoot, '.claude-plugin', 'plugin.json'),
+      ),
+    ) as { name: string; hooks?: string }
+
+    assertEquals(
+      await exists(join(pluginRoot, '.claude-plugin', 'plugin.json')),
+      true,
+    )
+    assertEquals(pluginConfig.name, pluginName)
+    assertEquals(pluginConfig.hooks, './hooks/hooks.json')
+    assertEquals(await exists(join(pluginRoot, 'bin', 'mise')), true)
+    assertEquals(
+      await exists(join(pluginRoot, 'scripts', 'cowork-shared-runtime.sh')),
+      true,
+    )
+    assertEquals(
+      await exists(join(pluginRoot, 'scripts', 'cowork-runtime-common.sh')),
+      true,
+    )
+    assertEquals(
+      await exists(join(pluginRoot, 'scripts', 'cowork-plugin-context.sh')),
+      true,
+    )
+    assertEquals(
+      await exists(join(pluginRoot, 'scripts', 'session-start-sample.ts')),
+      true,
+    )
+    assertEquals(
+      await exists(join(pluginRoot, 'skills', pluginName, 'SKILL.md')),
+      true,
+    )
+    assertEquals(await exists(join(pluginRoot, 'hooks', 'hooks.json')), true)
+    assertEquals(
+      await exists(join(pluginRoot, 'hooks', 'session-start.sh')),
+      true,
+    )
+    assertEquals(await exists(join(pluginRoot, 'bin', 'deno')), false)
+    assertEquals(await exists(join(pluginRoot, 'deps')), false)
+    assertEquals(
+      await exists(join(pluginRoot, 'scripts', 'runtime-shim.sh')),
+      false,
+    )
+
+    assertEquals(
+      await Deno.readTextFile(join(pluginRoot, 'bin', 'mise')),
+      baselineBin,
+    )
+    assertEquals(
+      await Deno.readTextFile(
+        join(pluginRoot, 'scripts', 'cowork-shared-runtime.sh'),
+      ),
+      baselineRuntime,
+    )
+    assertEquals(
+      await Deno.readTextFile(
+        join(pluginRoot, 'scripts', 'cowork-runtime-common.sh'),
+      ),
+      baselineCommon,
+    )
+    assertEquals(
+      await Deno.readTextFile(
+        join(pluginRoot, 'scripts', 'cowork-plugin-context.sh'),
+      ),
+      baselineContext,
+    )
+  }
 })
 
 Deno.test('config MCPB bundle exists and keeps the expected config contract', async () => {
-  const bundleRoot = join(Deno.cwd(), 'plugins', 'sa-cowork-config-mcp')
+  const bundleRoot = join(REPO_ROOT, 'plugins', 'sa-cowork-config-mcp')
   const manifest = JSON.parse(
     await Deno.readTextFile(join(bundleRoot, 'manifest.json')),
   ) as {

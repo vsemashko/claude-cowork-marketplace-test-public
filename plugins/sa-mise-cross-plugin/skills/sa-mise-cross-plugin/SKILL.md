@@ -1,17 +1,44 @@
 ---
 name: sa-mise-cross-plugin
-description: Experimentally discover the sa-mise runtime from PATH or shared Cowork runtime state for shebang hooks.
+description: Run the generated peer-safe mise shim exposed by the cross-plugin fixture.
 ---
 
 # sa-mise-cross-plugin
 
-Use this plugin only after `sa-mise` is installed.
+Use this skill when the user wants to run `mise` through the
+`sa-mise-cross-plugin` peer fixture.
 
-The cross-plugin consumer is intentionally experimental:
+## Command
 
-- it first tries whatever `mise` is already on `PATH`
-- if no `mise` is present, it falls back to the shared Cowork install marker
-  produced by `sa-mise`
+If the plugin `bin/` directory is already on `PATH`, run `mise` directly:
 
-The hook log records which strategy succeeded so the PATH behavior stays
-observable in tests.
+```bash
+mise <args>
+```
+
+For a basic availability check:
+
+```bash
+mise --version
+```
+
+If `mise` is not on `PATH`, fall back to the plugin-local shim path:
+
+```bash
+${CLAUDE_PLUGIN_ROOT}/bin/mise <args>
+```
+
+## Notes
+
+- This fixture ships the same generated `bin/mise` shim as every other
+  `sa-mise*` peer plugin in this repo.
+- The shim keeps a durable local mirror at:
+  `${CLAUDE_PLUGIN_DATA}/runtime-mirror/mise/<platform>/`
+- The active session runtime is shared at:
+  `<shared-root>/.claude/plugins/shared-runtime/mise/<platform>/`
+- Any peer plugin may run first, recreate the shared symlink, or backfill its
+  own mirror from shared state.
+- Registered hook logs are written here:
+  `${CLAUDE_PLUGIN_DATA}/logs/session-start.log`
+- Shared resolver diagnostics are captured here:
+  `${CLAUDE_PLUGIN_DATA}/state/cowork-plugin-context.env`

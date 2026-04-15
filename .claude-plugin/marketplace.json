@@ -5,13 +5,13 @@
     "email": "vsemashko@gmail.com"
   },
   "metadata": {
-    "description": "Minimal Claude marketplace for exposing a transparent mise shim",
+    "description": "Minimal Claude marketplace for exercising fully interchangeable Cowork mise shims",
     "version": "1.0.0"
   },
   "plugins": [
     {
       "name": "sa-mise",
-      "description": "Bootstraps the latest mise binary into Claude plugin data and exposes it via a transparent shim",
+      "description": "Peer Cowork fixture that bootstraps and shares the latest mise binary through the generated shared shim",
       "version": "1.0.0",
       "category": "core",
       "source": "./plugins/sa-mise",
@@ -22,7 +22,7 @@
     },
     {
       "name": "sa-mise-forwarder",
-      "description": "Runs shebang hooks through a local forwarder that delegates to the warmed sa-mise runtime",
+      "description": "Peer Cowork fixture that uses the exact same generated mise shim as the primary fixture",
       "version": "1.0.0",
       "category": "core",
       "source": "./plugins/sa-mise-forwarder",
@@ -33,7 +33,7 @@
     },
     {
       "name": "sa-mise-cross-plugin",
-      "description": "Experimental consumer plugin that discovers sa-mise from PATH or shared Cowork runtime state",
+      "description": "Peer Cowork fixture that validates cross-plugin shared-runtime recovery with the same generated mise shim",
       "version": "1.0.0",
       "category": "core",
       "source": "./plugins/sa-mise-cross-plugin",

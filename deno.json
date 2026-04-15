@@ -5,6 +5,7 @@
     "@std/path": "jsr:@std/path@^1.1.3"
   },
   "tasks": {
+    "generate": "deno run --allow-read --allow-write scripts/generate-peer-plugins.ts",
     "test": "deno test --allow-all",
     "fmt": "deno fmt",
     "lint": "deno lint"

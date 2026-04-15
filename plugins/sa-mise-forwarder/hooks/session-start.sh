@@ -28,41 +28,35 @@ if [ -x "$CONTEXT_HELPER" ]; then
 fi
 
 if [ -n "$PLUGIN_DATA_DIR" ]; then
-  LOG_FILE="${PLUGIN_DATA_DIR}/logs/sa-mise-forwarder-session-start.log"
+  LOG_FILE="${PLUGIN_DATA_DIR}/logs/session-start.log"
   mkdir -p "$(dirname "$LOG_FILE")"
 fi
 
 export PATH="${PLUGIN_ROOT}/bin:${PATH}"
 export CLAUDE_PLUGIN_ROOT="$PLUGIN_ROOT"
 
-mkdir -p "${TMPDIR:-/tmp}"
-TMP_FILE="$(mktemp "${TMPDIR:-/tmp}/sa-mise-forwarder-session-start.XXXXXX")"
-
-if "${PLUGIN_ROOT}/hooks/session-start.ts" >"$TMP_FILE" 2>&1; then
-  if [ -n "$LOG_FILE" ]; then
-    {
-      printf 'timestamp=%s\n' "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-      printf 'plugin_data_source=%s\n' "$PLUGIN_DATA_SOURCE"
-      printf 'hook_status=success\n'
-      grep -E '^(sample_name|plugin_name|path_strategy|resolved_mise_path|mise_version|deno_version)=' "$TMP_FILE" || true
-      printf '\n'
-    } >> "$LOG_FILE"
-  fi
-  cat "$TMP_FILE"
+if [ -z "$LOG_FILE" ]; then
   exit 0
 fi
 
-if [ -n "$LOG_FILE" ]; then
-  {
-    printf 'timestamp=%s\n' "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
-    printf 'plugin_data_source=%s\n' "$PLUGIN_DATA_SOURCE"
-    printf 'hook_status=failure\n'
-    if error_line="$(tail -n 1 "$TMP_FILE" 2>/dev/null)"; then
-      printf 'hook_error=%s\n' "$error_line"
-    fi
-    printf '\n'
-  } >> "$LOG_FILE"
+{
+  printf 'timestamp=%s\n' "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+  printf 'plugin_data_source=%s\n' "$PLUGIN_DATA_SOURCE"
+} >> "$LOG_FILE"
+
+mkdir -p "${TMPDIR:-/tmp}"
+TMP_FILE="$(mktemp "${TMPDIR:-/tmp}/sa-mise-session-start.XXXXXX")"
+
+if "${PLUGIN_ROOT}/scripts/session-start-sample.ts" >"$TMP_FILE" 2>&1; then
+  printf 'hook_status=success\n' >> "$LOG_FILE"
+  grep -E '^(sample_name|plugin_name|mise_version|deno_version)=' "$TMP_FILE" >> "$LOG_FILE" || true
+else
+  printf 'hook_status=failure\n' >> "$LOG_FILE"
+  if error_line="$(tail -n 1 "$TMP_FILE" 2>/dev/null)"; then
+    printf 'hook_error=%s\n' "$error_line" >> "$LOG_FILE"
+  fi
 fi
 
-cat "$TMP_FILE" >&2
-exit 1
+printf '\n' >> "$LOG_FILE"
+
+exit 0

@@ -49,7 +49,7 @@ TMP_FILE="$(mktemp "${TMPDIR:-/tmp}/sa-mise-session-start.XXXXXX")"
 
 if "${PLUGIN_ROOT}/scripts/session-start-sample.ts" >"$TMP_FILE" 2>&1; then
   printf 'hook_status=success\n' >> "$LOG_FILE"
-  grep -E '^(sample_name|mise_version|deno_version)=' "$TMP_FILE" >> "$LOG_FILE" || true
+  grep -E '^(sample_name|plugin_name|mise_version|deno_version)=' "$TMP_FILE" >> "$LOG_FILE" || true
 else
   printf 'hook_status=failure\n' >> "$LOG_FILE"
   if error_line="$(tail -n 1 "$TMP_FILE" 2>/dev/null)"; then

@@ -1,8 +1,9 @@
 {
   "name": "sa-mise-forwarder",
   "version": "1.0.0",
-  "description": "Consumer plugin that forwards to sa-mise's warmed runtime for shebang hooks",
+  "description": "Peer Cowork fixture that uses the exact same generated mise shim as the primary fixture",
   "author": {
     "name": "Vladimir Semashko"
-  }
+  },
+  "hooks": "./hooks/hooks.json"
 }

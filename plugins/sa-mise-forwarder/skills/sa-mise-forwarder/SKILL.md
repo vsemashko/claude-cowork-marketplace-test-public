@@ -1,18 +1,44 @@
 ---
 name: sa-mise-forwarder
-description: Run shebang hooks through the local forwarder shim that delegates to the warmed sa-mise runtime.
+description: Run the generated peer-safe mise shim exposed by the forwarder fixture.
 ---
 
 # sa-mise-forwarder
 
-Use this plugin after `sa-mise` has already installed and warmed the shared
-runtime.
+Use this skill when the user wants to run `mise` through the `sa-mise-forwarder`
+peer fixture.
 
-The forwarder plugin provides a deterministic consumer path:
+## Command
 
-- its hook launcher prepends the plugin-local `bin/` directory to `PATH`
-- `bin/mise` forwards into the warmed `sa-mise` runtime under shared Cowork
-  plugin data
+If the plugin `bin/` directory is already on `PATH`, run `mise` directly:
 
-If `sa-mise` has not been warmed yet, the forwarder fails clearly and asks you
-to run `sa-mise` first.
+```bash
+mise <args>
+```
+
+For a basic availability check:
+
+```bash
+mise --version
+```
+
+If `mise` is not on `PATH`, fall back to the plugin-local shim path:
+
+```bash
+${CLAUDE_PLUGIN_ROOT}/bin/mise <args>
+```
+
+## Notes
+
+- This fixture ships the same generated `bin/mise` shim as every other
+  `sa-mise*` peer plugin in this repo.
+- The shim keeps a durable local mirror at:
+  `${CLAUDE_PLUGIN_DATA}/runtime-mirror/mise/<platform>/`
+- The active session runtime is shared at:
+  `<shared-root>/.claude/plugins/shared-runtime/mise/<platform>/`
+- Any peer plugin may run first, recreate the shared symlink, or backfill its
+  own mirror from shared state.
+- Registered hook logs are written here:
+  `${CLAUDE_PLUGIN_DATA}/logs/session-start.log`
+- Shared resolver diagnostics are captured here:
+  `${CLAUDE_PLUGIN_DATA}/state/cowork-plugin-context.env`

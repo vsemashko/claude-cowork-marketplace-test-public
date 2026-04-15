@@ -1,12 +1,12 @@
 ---
 name: sa-mise
-description: Run the plugin-local mise shim exposed by this marketplace plugin.
+description: Run the generated peer-safe mise shim exposed by this marketplace fixture.
 ---
 
 # sa-mise
 
-Use this skill when the user asks whether `mise` is available or wants to run a
-`mise` command through the marketplace plugin.
+Use this skill when the user wants to run `mise` through the `sa-mise` peer
+fixture.
 
 ## Command
 
@@ -30,15 +30,15 @@ ${CLAUDE_PLUGIN_ROOT}/bin/mise <args>
 
 ## Notes
 
-- The shim resolves plugin root from its own path.
-- On first use it installs the latest official `mise` binary into:
-  `${CLAUDE_PLUGIN_DATA}/${platform}/bin/mise`
-- Plugin data is resolved in this order: live `CLAUDE_PLUGIN_DATA`, shared
-  Cowork session state, then deterministic session-layout discovery.
-- The SessionStart hook refreshes shared resolver diagnostics, but direct shim
-  execution should work without manually passing `CLAUDE_PLUGIN_DATA`.
+- This fixture ships the same generated `bin/mise` shim as every other
+  `sa-mise*` peer plugin in this repo.
+- The shim keeps a durable local mirror at:
+  `${CLAUDE_PLUGIN_DATA}/runtime-mirror/mise/<platform>/`
+- The active session runtime is shared at:
+  `<shared-root>/.claude/plugins/shared-runtime/mise/<platform>/`
+- Any peer plugin may run first, recreate the shared symlink, or backfill its
+  own mirror from shared state.
 - Registered hook logs are written here:
   `${CLAUDE_PLUGIN_DATA}/logs/session-start.log`
-- Check shared resolver diagnostics here:
+- Shared resolver diagnostics are captured here:
   `${CLAUDE_PLUGIN_DATA}/state/cowork-plugin-context.env`
-- Later runs reuse the cached binary until that cache directory is removed.
