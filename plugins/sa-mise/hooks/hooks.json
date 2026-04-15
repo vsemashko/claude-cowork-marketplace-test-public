@@ -6,7 +6,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "\"${CLAUDE_PLUGIN_ROOT:-}/scripts/session-start-sa-mise.sh\""
+            "command": "\"${CLAUDE_PLUGIN_ROOT:-}/bin/mise\" exec deno@latest -- deno eval 'Deno.exit(0)' >/dev/null 2>&1"
           }
         ]
       },

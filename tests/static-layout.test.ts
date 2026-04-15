@@ -2,7 +2,7 @@ import { assertEquals, assertStringIncludes } from '@std/assert'
 import { exists } from '@std/fs'
 import { join } from '@std/path'
 
-const PEER_PLUGIN_NAMES = ['sa-mise', 'sa-mise-user'] as const
+const PEER_PLUGIN_NAMES = ['sa-mise', 'sa-mise-user', 'sa-mise-user-2'] as const
 const REPO_ROOT = Deno.cwd()
 
 Deno.test('marketplace manifest advertises the minimal sa-mise plugin set', async () => {
@@ -25,9 +25,11 @@ Deno.test('marketplace manifest advertises the minimal sa-mise plugin set', asyn
 Deno.test('generated plugins match the minimal owner-and-consumer architecture', async () => {
   const saMiseRoot = join(REPO_ROOT, 'plugins', 'sa-mise')
   const saMiseUserRoot = join(REPO_ROOT, 'plugins', 'sa-mise-user')
+  const saMiseUser2Root = join(REPO_ROOT, 'plugins', 'sa-mise-user-2')
 
   assertEquals(await exists(saMiseRoot), true)
   assertEquals(await exists(saMiseUserRoot), true)
+  assertEquals(await exists(saMiseUser2Root), true)
   assertEquals(
     await exists(join(REPO_ROOT, 'plugins', 'sa-mise-session-start-a')),
     false,
@@ -56,7 +58,7 @@ Deno.test('generated plugins match the minimal owner-and-consumer architecture',
   )
   assertEquals(
     await exists(join(saMiseRoot, 'scripts', 'session-start-sa-mise.sh')),
-    true,
+    false,
   )
   assertEquals(await exists(join(saMiseRoot, 'hooks', 'reply-sir.sh')), true)
 
@@ -77,6 +79,11 @@ Deno.test('generated plugins match the minimal owner-and-consumer architecture',
     await exists(join(saMiseUserRoot, 'scripts', 'resolve-env.sh')),
     true,
   )
+  assertEquals(await exists(join(saMiseUser2Root, 'bin', 'mise')), false)
+  assertEquals(
+    await exists(join(saMiseUser2Root, 'scripts', 'resolve-env.sh')),
+    true,
+  )
 
   const saMiseHooks = JSON.parse(
     await Deno.readTextFile(join(saMiseRoot, 'hooks', 'hooks.json')),
@@ -94,19 +101,32 @@ Deno.test('generated plugins match the minimal owner-and-consumer architecture',
       Array<{ hooks: Array<{ type: string; command: string }> }>
     >
   }
+  const saMiseUser2Hooks = JSON.parse(
+    await Deno.readTextFile(join(saMiseUser2Root, 'hooks', 'hooks.json')),
+  ) as {
+    hooks: Record<
+      string,
+      Array<{ hooks: Array<{ type: string; command: string }> }>
+    >
+  }
 
   const saMiseSessionStartCommands = (saMiseHooks.hooks.SessionStart ?? [])
     .flatMap((matcher) => matcher.hooks.map((hook) => hook.command))
   const saMiseUserSessionStartCommands = (saMiseUserHooks.hooks.SessionStart ??
     [])
     .flatMap((matcher) => matcher.hooks.map((hook) => hook.command))
+  const saMiseUser2SessionStartCommands =
+    (saMiseUser2Hooks.hooks.SessionStart ??
+      [])
+      .flatMap((matcher) => matcher.hooks.map((hook) => hook.command))
 
   assertEquals(saMiseSessionStartCommands.length, 2)
   assertEquals(saMiseUserSessionStartCommands.length, 1)
+  assertEquals(saMiseUser2SessionStartCommands.length, 1)
 
   assertEquals(
     saMiseSessionStartCommands.some((command) =>
-      command.includes('session-start-sa-mise.sh')
+      command.includes('"${CLAUDE_PLUGIN_ROOT:-}/bin/mise" exec deno@latest')
     ),
     true,
   )
@@ -130,17 +150,36 @@ Deno.test('generated plugins match the minimal owner-and-consumer architecture',
   )
 
   const saMiseUserCommand = saMiseUserSessionStartCommands[0]
+  const saMiseUser2Command = saMiseUser2SessionStartCommands[0]
   assertStringIncludes(
     saMiseUserCommand,
-    '. "${CLAUDE_PLUGIN_ROOT:-}/scripts/resolve-env.sh"',
+    '. "${CLAUDE_PLUGIN_ROOT:-}/scripts/resolve-env.sh" &&',
   )
   assertStringIncludes(
     saMiseUserCommand,
     "mise exec deno@latest -- deno eval 'Deno.exit(0)' >/dev/null 2>&1",
   )
+  assertStringIncludes(
+    saMiseUser2Command,
+    '. "${CLAUDE_PLUGIN_ROOT:-}/scripts/resolve-env.sh" &&',
+  )
   assertEquals(
     saMiseUserCommand.includes('find-sa-mise-sibling.sh'),
     false,
+  )
+  const resolveEnvScript = await Deno.readTextFile(
+    join(saMiseUserRoot, 'scripts', 'resolve-env.sh'),
+  )
+  assertStringIncludes(resolveEnvScript, '.sa-mise-resolve-env.log')
+  assertStringIncludes(resolveEnvScript, 'state/sa-mise-plugin-root')
+  assertStringIncludes(resolveEnvScript, 'source=%s')
+  assertStringIncludes(
+    resolveEnvScript,
+    'use_resolved_root "$cached_root" cache hit',
+  )
+  assertStringIncludes(
+    resolveEnvScript,
+    'use_resolved_root "$sibling_plugin_root" scan written',
   )
 })
 

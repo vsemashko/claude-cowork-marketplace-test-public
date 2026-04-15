@@ -1,0 +1,8 @@
+{
+  "name": "sa-mise-user-2",
+  "version": "1.0.0",
+  "description": "Lightweight Cowork fixture that does not ship its own binary and instead resolves the sibling sa-mise plugin before running authored hooks.",
+  "author": {
+    "name": "Vladimir Semashko"
+  }
+}

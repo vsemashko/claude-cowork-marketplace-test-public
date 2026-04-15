@@ -21,6 +21,8 @@ type PluginDefinition = {
 }
 
 const VERSION = '1.0.0'
+const RESOLVE_ENV_LOG_NAME = '.sa-mise-resolve-env.log'
+const RESOLVE_ENV_CACHE_RELATIVE_PATH = 'state/sa-mise-plugin-root'
 const OWNER = {
   name: 'Vladimir Semashko',
   email: 'vsemashko@gmail.com',
@@ -42,6 +44,112 @@ const OBSOLETE_PLUGIN_DIRS = [
 
 const REPLY_WITH_SIR_CONTEXT = 'Always end every assistant reply with ", sir".'
 
+function createResolveEnvScript(): string {
+  return [
+    '#!/bin/sh',
+    '',
+    'plugin_root="${CLAUDE_PLUGIN_ROOT:-}"',
+    '[ -n "$plugin_root" ] || { echo "CLAUDE_PLUGIN_ROOT is required" >&2; return 1 2>/dev/null || exit 1; }',
+    '',
+    'plugin_metadata="$plugin_root/.claude-plugin/plugin.json"',
+    'current_plugin_name="$(sed -n \'s/^[[:space:]]*"name"[[:space:]]*:[[:space:]]*"\\([^"]*\\)".*$/\\1/p\' "$plugin_metadata" 2>/dev/null | head -n 1)"',
+    'current_plugin_name="${current_plugin_name:-unknown}"',
+    'plugin_parent="$(dirname "$plugin_root")"',
+    'resolve_log="${CLAUDE_PROJECT_DIR:-${PWD:-.}}/' + RESOLVE_ENV_LOG_NAME +
+    '"',
+    'cache_file=""',
+    'if [ -n "${CLAUDE_PLUGIN_DATA:-}" ]; then',
+    '  cache_file="${CLAUDE_PLUGIN_DATA}/' + RESOLVE_ENV_CACHE_RELATIVE_PATH +
+    '"',
+    '  mkdir -p "$(dirname "$cache_file")"',
+    'fi',
+    'mkdir -p "$(dirname "$resolve_log")"',
+    '',
+    'log_resolution() {',
+    '  source_label="$1"',
+    '  status_label="$2"',
+    '  resolved_root="$3"',
+    '  cache_state="$4"',
+    '  ts="$(date -u +%Y-%m-%dT%H:%M:%SZ 2>/dev/null || date)"',
+    '  printf \'ts=%s plugin=%s source=%s status=%s cache=%s resolved_root=%s\\n\' "$ts" "$current_plugin_name" "$source_label" "$status_label" "$cache_state" "$resolved_root" >> "$resolve_log"',
+    '}',
+    '',
+    'use_resolved_root() {',
+    '  resolved_root="$1"',
+    '  source_label="$2"',
+    '  cache_state="$3"',
+    '  sa_mise_bin="$resolved_root/bin"',
+    '  [ -x "$sa_mise_bin/mise" ] || return 1',
+    '  export SA_MISE_PLUGIN_ROOT="$resolved_root"',
+    '  export PATH="$sa_mise_bin:$PATH"',
+    '  log_resolution "$source_label" success "$resolved_root" "$cache_state"',
+    '  return 0',
+    '}',
+    '',
+    'if [ -n "$cache_file" ] && [ -f "$cache_file" ]; then',
+    '  cached_root="$(sed -n \'1p\' "$cache_file")"',
+    '  if [ -n "$cached_root" ] && [ -f "$cached_root/.claude-plugin/plugin.json" ]; then',
+    '    cached_name="$(sed -n \'s/^[[:space:]]*"name"[[:space:]]*:[[:space:]]*"\\([^"]*\\)".*$/\\1/p\' "$cached_root/.claude-plugin/plugin.json" | head -n 1)"',
+    '    if [ "$cached_name" = "sa-mise" ] && use_resolved_root "$cached_root" cache hit; then',
+    '      return 0 2>/dev/null || exit 0',
+    '    fi',
+    '  fi',
+    '  log_resolution cache invalid "${cached_root:-}" stale',
+    'fi',
+    '',
+    'for sibling_plugin_root in "$plugin_parent"/*; do',
+    '  [ -d "$sibling_plugin_root" ] || continue',
+    '  sibling_metadata="$sibling_plugin_root/.claude-plugin/plugin.json"',
+    '  [ -f "$sibling_metadata" ] || continue',
+    '  sibling_name="$(sed -n \'s/^[[:space:]]*"name"[[:space:]]*:[[:space:]]*"\\([^"]*\\)".*$/\\1/p\' "$sibling_metadata" | head -n 1)"',
+    '  if [ "$sibling_name" = "sa-mise" ]; then',
+    '    if [ -n "$cache_file" ]; then',
+    '      printf \'%s\\n\' "$sibling_plugin_root" > "$cache_file"',
+    '    fi',
+    '    if use_resolved_root "$sibling_plugin_root" scan written; then',
+    '      return 0 2>/dev/null || exit 0',
+    '    fi',
+    '    echo "sa-mise bin/mise is missing" >&2',
+    '    return 1 2>/dev/null || exit 1',
+    '  fi',
+    'done',
+    '',
+    'log_resolution scan failure "" miss',
+    'echo "sa-mise plugin not found" >&2',
+    'return 1 2>/dev/null || exit 1',
+  ].join('\n')
+}
+
+function createConsumerPlugin(name: string): PluginDefinition {
+  return {
+    name,
+    description:
+      'Lightweight Cowork fixture that does not ship its own binary and instead resolves the sibling sa-mise plugin before running authored hooks.',
+    skillName: name,
+    skillDescription:
+      'Run bare mise commands through the sibling sa-mise plugin resolved at hook execution time.',
+    hookSummary:
+      'This fixture does not ship bin/mise. During generation, each command hook is rewritten to source scripts/resolve-env.sh before running the authored bare mise command, and the resolver caches the discovered sa-mise root under CLAUDE_PLUGIN_DATA/state.',
+    hooks: [
+      {
+        event: 'SessionStart',
+        label: 'runtime-probe',
+        matcher: '',
+        command:
+          "mise exec deno@latest -- deno eval 'Deno.exit(0)' >/dev/null 2>&1",
+      },
+    ],
+    hookCommandPrefixScript: 'scripts/resolve-env.sh',
+    extraFiles: [
+      {
+        path: 'scripts/resolve-env.sh',
+        executable: true,
+        content: createResolveEnvScript(),
+      },
+    ],
+  }
+}
+
 const PEER_PLUGINS: PluginDefinition[] = [
   {
     name: 'sa-mise',
@@ -57,7 +165,8 @@ const PEER_PLUGINS: PluginDefinition[] = [
         event: 'SessionStart',
         label: 'runtime-probe',
         matcher: '',
-        command: '"${CLAUDE_PLUGIN_ROOT:-}/scripts/session-start-sa-mise.sh"',
+        command:
+          '"${CLAUDE_PLUGIN_ROOT:-}/bin/mise" exec deno@latest -- deno eval \'Deno.exit(0)\' >/dev/null 2>&1',
       },
       {
         event: 'SessionStart',
@@ -68,17 +177,6 @@ const PEER_PLUGINS: PluginDefinition[] = [
     ],
     sharedTemplateFiles: SHARED_TEMPLATE_FILES,
     extraFiles: [
-      {
-        path: 'scripts/session-start-sa-mise.sh',
-        executable: true,
-        content: [
-          '#!/bin/sh',
-          '',
-          'set -eu',
-          '',
-          '"${CLAUDE_PLUGIN_ROOT:-}/bin/mise" exec deno@latest -- deno eval \'Deno.exit(0)\' >/dev/null 2>&1',
-        ].join('\n'),
-      },
       {
         path: 'hooks/reply-sir.sh',
         executable: true,
@@ -94,57 +192,8 @@ const PEER_PLUGINS: PluginDefinition[] = [
       },
     ],
   },
-  {
-    name: 'sa-mise-user',
-    description:
-      'Lightweight Cowork fixture that does not ship its own binary and instead resolves the sibling sa-mise plugin before running authored hooks.',
-    skillName: 'sa-mise-user',
-    skillDescription:
-      'Run bare mise commands through the sibling sa-mise plugin resolved at hook execution time.',
-    hookSummary:
-      'This fixture does not ship bin/mise. During generation, each command hook is rewritten to source scripts/resolve-env.sh before running the authored bare mise command.',
-    hooks: [
-      {
-        event: 'SessionStart',
-        label: 'runtime-probe',
-        matcher: '',
-        command:
-          "mise exec deno@latest -- deno eval 'Deno.exit(0)' >/dev/null 2>&1",
-      },
-    ],
-    hookCommandPrefixScript: 'scripts/resolve-env.sh',
-    extraFiles: [
-      {
-        path: 'scripts/resolve-env.sh',
-        executable: true,
-        content: [
-          '#!/bin/sh',
-          '',
-          'plugin_root="${CLAUDE_PLUGIN_ROOT:-}"',
-          '[ -n "$plugin_root" ] || { echo "CLAUDE_PLUGIN_ROOT is required" >&2; return 1 2>/dev/null || exit 1; }',
-          '',
-          'plugin_parent="$(dirname "$plugin_root")"',
-          'for sibling_plugin_root in "$plugin_parent"/*; do',
-          '  [ -d "$sibling_plugin_root" ] || continue',
-          '  sibling_metadata="$sibling_plugin_root/.claude-plugin/plugin.json"',
-          '  [ -f "$sibling_metadata" ] || continue',
-          `  sibling_name="$(sed -n 's/^[[:space:]]*"name"[[:space:]]*:[[:space:]]*"\\([^"]*\\)".*$/\\1/p' "$sibling_metadata" | head -n 1)"`,
-          '  if [ "$sibling_name" = "sa-mise" ]; then',
-          '    sa_mise_plugin_root="$sibling_plugin_root"',
-          '    sa_mise_bin="$sa_mise_plugin_root/bin"',
-          '    [ -x "$sa_mise_bin/mise" ] || { echo "sa-mise bin/mise is missing" >&2; return 1 2>/dev/null || exit 1; }',
-          '    export SA_MISE_PLUGIN_ROOT="$sa_mise_plugin_root"',
-          '    export PATH="$sa_mise_bin:$PATH"',
-          '    return 0 2>/dev/null || exit 0',
-          '  fi',
-          'done',
-          '',
-          'echo "sa-mise plugin not found" >&2',
-          'return 1 2>/dev/null || exit 1',
-        ].join('\n'),
-      },
-    ],
-  },
+  createConsumerPlugin('sa-mise-user'),
+  createConsumerPlugin('sa-mise-user-2'),
 ]
 
 const repoRoot = dirname(dirname(fromFileUrl(import.meta.url)))
@@ -205,9 +254,11 @@ function buildHookCommand(
     )
   }
 
-  commands.push(hook.command)
+  if (commands.length === 0) {
+    return hook.command
+  }
 
-  return commands.join('\n')
+  return `${commands.join(' && ')} && ${hook.command}`
 }
 
 function createHooksJson(plugin: PluginDefinition): string {
@@ -236,7 +287,11 @@ function createSkillContent(plugin: PluginDefinition): string {
 - Its authored hooks call bare \`mise\`, and generation rewrites them to source
   \`scripts/resolve-env.sh\` first.
 - \`scripts/resolve-env.sh\` resolves the sibling \`sa-mise\` plugin, exports
-  \`SA_MISE_PLUGIN_ROOT\`, and prepends \`<resolved-sa-mise>/bin\` to \`PATH\`.`
+  \`SA_MISE_PLUGIN_ROOT\`, prepends \`<resolved-sa-mise>/bin\` to \`PATH\`, and
+  caches the discovered owner path under
+  \`\${CLAUDE_PLUGIN_DATA}/` + RESOLVE_ENV_CACHE_RELATIVE_PATH + `\`.
+- Resolution attempts append compact cache hit/scan logs to
+  \`\${CLAUDE_PROJECT_DIR}/` + RESOLVE_ENV_LOG_NAME + `\`.`
     : `- This fixture ships the canonical generated \`bin/mise\` shim.
 - The shim keeps a durable local mirror at:
   \`\${CLAUDE_PLUGIN_DATA}/runtime-mirror/mise/<platform>/\`
@@ -269,7 +324,8 @@ During generation, the emitted hooks first source:
 \${CLAUDE_PLUGIN_ROOT}/scripts/resolve-env.sh
 \`\`\`
 
-and then run the bare \`mise\` command in the enriched environment.`
+and then run the bare \`mise\` command in the enriched environment with
+\`&&\` chaining.`
       : `If the plugin \`bin/\` directory is already on \`PATH\`, run \`mise\`
 directly:
 
@@ -372,11 +428,11 @@ async function generatePeerPlugin(plugin: PluginDefinition): Promise<void> {
     'hooks/session-start.sh',
     'scripts/session-start-sample.ts',
     'scripts/find-sa-mise-sibling.sh',
-    'scripts/session-start-sa-mise.sh',
     'scripts/cwd-changed-sa-mise.sh',
     'scripts/user-prompt-submit-sa-mise.sh',
     'hooks/reply-sir.sh',
     'scripts/resolve-env.sh',
+    'scripts/session-start-sa-mise.sh',
   ]
 
   for (const relativePath of removableFiles) {

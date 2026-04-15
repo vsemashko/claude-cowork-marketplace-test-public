@@ -6,7 +6,9 @@ const REPO_ROOT = Deno.cwd()
 const INSTALL_SCRIPT_URL = 'https://mise.jdx.dev/install.sh'
 const SESSION_NAME = 'determined-kind-cerf'
 const SHARED_ROOT_ENV_VAR = 'CLAUDE_COWORK_SHARED_ROOT'
-const PEER_PLUGIN_NAMES = ['sa-mise', 'sa-mise-user'] as const
+const RESOLVE_ENV_LOG_NAME = '.sa-mise-resolve-env.log'
+const RESOLVE_ENV_CACHE_RELATIVE_PATH = 'state/sa-mise-plugin-root'
+const PEER_PLUGIN_NAMES = ['sa-mise', 'sa-mise-user', 'sa-mise-user-2'] as const
 
 type PluginName = (typeof PEER_PLUGIN_NAMES)[number]
 type Layout = 'guest' | 'session'
@@ -65,7 +67,6 @@ async function createPluginFixture(
     'scripts/cowork-plugin-context.sh',
     'scripts/cowork-runtime-common.sh',
     'scripts/cowork-shared-runtime.sh',
-    'scripts/session-start-sa-mise.sh',
     'hooks/reply-sir.sh',
     'scripts/resolve-env.sh',
   ]
@@ -239,6 +240,14 @@ function sharedRuntimeBinaryPath(
 
 function stateFilePath(pluginDataRoot: string): string {
   return join(pluginDataRoot, 'state', 'cowork-plugin-context.env')
+}
+
+function resolveEnvCachePath(pluginDataRoot: string): string {
+  return join(pluginDataRoot, RESOLVE_ENV_CACHE_RELATIVE_PATH)
+}
+
+function resolveEnvLogPath(baseDir: string): string {
+  return join(baseDir, 'project', RESOLVE_ENV_LOG_NAME)
 }
 
 function contextHelperPath(pluginRoot: string): string {
@@ -420,7 +429,7 @@ Deno.test('sa-mise SessionStart hooks run the runtime probe and emit the reply-s
   }
 })
 
-Deno.test('sa-mise-user SessionStart hook resolves the sibling sa-mise plugin and runs bare mise', async () => {
+Deno.test('consumer plugins resolve the sibling sa-mise plugin, cache it, and log cache usage', async () => {
   const baseDir = await Deno.makeTempDir()
 
   try {
@@ -429,6 +438,11 @@ Deno.test('sa-mise-user SessionStart hook resolves the sibling sa-mise plugin an
       baseDir,
       'session',
       'sa-mise-user',
+    )
+    const saMiseUser2 = await createPluginFixture(
+      baseDir,
+      'session',
+      'sa-mise-user-2',
     )
     const { downloadLogPath, mockBinDir } = await createMockTooling(baseDir)
     const sharedRoot = sharedRootFromPluginRoot(saMise.pluginRoot)
@@ -439,26 +453,67 @@ Deno.test('sa-mise-user SessionStart hook resolves the sibling sa-mise plugin an
       mockBinDir,
       sharedRoot,
     )
+    const env2 = createEnv(
+      baseDir,
+      'sa-mise-user-2',
+      downloadLogPath,
+      mockBinDir,
+      sharedRoot,
+    )
 
     const [hookResult] = await runHook(
       saMiseUser.pluginRoot,
       'SessionStart',
       env,
     )
+    const [hookResultCached] = await runHook(
+      saMiseUser.pluginRoot,
+      'SessionStart',
+      env,
+    )
+    const [hookResultSecondConsumer] = await runHook(
+      saMiseUser2.pluginRoot,
+      'SessionStart',
+      env2,
+    )
 
     assertEquals(hookResult.success, true)
+    assertEquals(hookResultCached.success, true)
+    assertEquals(hookResultSecondConsumer.success, true)
     assertEquals(await exists(sharedRuntimeBinaryPath(sharedRoot)), true)
     assertEquals(await exists(runtimeBinaryPath(env.CLAUDE_PLUGIN_DATA)), true)
+    assertEquals(await exists(runtimeBinaryPath(env2.CLAUDE_PLUGIN_DATA)), true)
+    assertEquals(
+      await Deno.readTextFile(resolveEnvCachePath(env.CLAUDE_PLUGIN_DATA)),
+      `${saMise.pluginRoot}\n`,
+    )
+    assertEquals(
+      await Deno.readTextFile(resolveEnvCachePath(env2.CLAUDE_PLUGIN_DATA)),
+      `${saMise.pluginRoot}\n`,
+    )
 
     const command =
       (await readHookCommands(saMiseUser.pluginRoot, 'SessionStart'))[0]
     assertStringIncludes(
       command,
-      '. "${CLAUDE_PLUGIN_ROOT:-}/scripts/resolve-env.sh"',
+      '. "${CLAUDE_PLUGIN_ROOT:-}/scripts/resolve-env.sh" &&',
     )
     assertStringIncludes(
       command,
       "mise exec deno@latest -- deno eval 'Deno.exit(0)' >/dev/null 2>&1",
+    )
+    const resolveLog = await Deno.readTextFile(resolveEnvLogPath(baseDir))
+    assertStringIncludes(
+      resolveLog,
+      'plugin=sa-mise-user source=scan status=success cache=written',
+    )
+    assertStringIncludes(
+      resolveLog,
+      'plugin=sa-mise-user source=cache status=success cache=hit',
+    )
+    assertStringIncludes(
+      resolveLog,
+      'plugin=sa-mise-user-2 source=scan status=success cache=written',
     )
   } finally {
     await Deno.remove(baseDir, { recursive: true })
@@ -493,6 +548,11 @@ Deno.test('sa-mise-user fails clearly when the sibling sa-mise plugin is missing
 
     assertEquals(hookResult.success, false)
     assertStringIncludes(stderr, 'sa-mise plugin not found')
+    const resolveLog = await Deno.readTextFile(resolveEnvLogPath(baseDir))
+    assertStringIncludes(
+      resolveLog,
+      'plugin=sa-mise-user source=scan status=failure cache=miss resolved_root=',
+    )
   } finally {
     await Deno.remove(baseDir, { recursive: true })
   }

@@ -1,6 +1,6 @@
 # sa-mise Marketplace
 
-This repository is a minimal Claude/Cowork test bundle with two marketplace
+This repository is a minimal Claude/Cowork test bundle with three marketplace
 plugins and one separately packaged MCPB bundle:
 
 - `sa-mise`: the canonical owner of the generated `mise` shim and shared runtime
@@ -8,6 +8,8 @@ plugins and one separately packaged MCPB bundle:
 - `sa-mise-user`: a lightweight consumer plugin with no own `bin/mise`; its
   authored hooks use bare `mise`, and generation rewrites those hooks to resolve
   the sibling `sa-mise` plugin first
+- `sa-mise-user-2`: a second lightweight consumer plugin that exercises the same
+  generated resolution and caching flow as `sa-mise-user`
 - `sa-cowork-config-mcp`: a separate MCPB extension for config handling tests
 
 The plugin bundle intentionally does not package `stash`, `stashaway-agents`, a
@@ -17,6 +19,7 @@ public `deno` shim, or any StashAway-private download logic.
 
 - `sa-mise`
 - `sa-mise-user`
+- `sa-mise-user-2`
 
 ## Included MCPB Bundle
 
@@ -30,6 +33,7 @@ Add this repo as a marketplace source in Claude:
 - Marketplace plugins:
   - `sa-mise`
   - `sa-mise-user`
+  - `sa-mise-user-2`
 
 The config MCPB is packaged separately and is not installed through the
 marketplace manifest.
@@ -74,16 +78,22 @@ Then install `dist/sa-cowork-config-mcp.mcpb` in Claude Desktop and configure:
   - a prompt/context hook that injects the instruction to always reply with
     `, sir`
 - `sa-mise-user` does not ship `bin/mise`.
-- `sa-mise-user` ships `scripts/resolve-env.sh`, whose only job is to:
+- `sa-mise-user` and `sa-mise-user-2` ship `scripts/resolve-env.sh`, whose only
+  job is to:
   - find the sibling `sa-mise` plugin
   - prepend `<resolved-sa-mise>/bin` to `PATH`
   - export `SA_MISE_PLUGIN_ROOT`
   - fail clearly if the sibling owner plugin cannot be found
-- The authored `sa-mise-user` hooks stay simple and assume bare `mise` is
-  already available.
-- During generation, every `sa-mise-user` command hook is rewritten to:
+- The authored consumer hooks stay simple and assume bare `mise` is already
+  available.
+- The resolver caches the discovered owner path at:
+  `${CLAUDE_PLUGIN_DATA}/state/sa-mise-plugin-root`
+- Resolution attempts append compact cache-hit/scan logs to:
+  `${CLAUDE_PROJECT_DIR}/.sa-mise-resolve-env.log`
+- During generation, every consumer command hook is rewritten to:
   - source `${CLAUDE_PLUGIN_ROOT}/scripts/resolve-env.sh`
   - run the original authored bare `mise` command in the enriched environment
+    with `&&` chaining
 
 ## Skills
 
@@ -91,6 +101,7 @@ Each plugin exposes one minimal skill matching its plugin name:
 
 - `sa-mise`
 - `sa-mise-user`
+- `sa-mise-user-2`
 
 For `sa-mise`, if the plugin `bin/` directory is already on `PATH`, run `mise`
 directly:
@@ -119,20 +130,23 @@ The emitted hook commands source `scripts/resolve-env.sh` first so the sibling
 1. Install the marketplace from this GitHub repo.
 2. Open a Claude plugin shell on a platform supported by the official `mise`
    installer.
-3. Install both `sa-mise` and `sa-mise-user`.
+3. Install `sa-mise`, `sa-mise-user`, and `sa-mise-user-2`.
 4. Trigger `SessionStart` and verify `sa-mise`:
    - succeeds through `${CLAUDE_PLUGIN_ROOT}/bin/mise`
    - emits the prompt/context instruction to always reply with `, sir`
-5. Trigger `SessionStart` for `sa-mise-user` and verify its hook succeeds even
-   though the plugin does not ship `bin/mise`.
-6. Confirm `sa-mise-user` resolves the sibling owner plugin and exposes bare
-   `mise` by sourcing `scripts/resolve-env.sh`.
-7. Verify the command succeeds and creates:
+5. Trigger `SessionStart` for both consumer plugins and verify their hooks
+   succeed even though neither plugin ships `bin/mise`.
+6. Confirm the first consumer run resolves the sibling owner plugin by scan,
+   writes the cache file, and that later runs reuse the cached path.
+7. Inspect `${CLAUDE_PROJECT_DIR}/.sa-mise-resolve-env.log` and confirm you see
+   `source=scan` on first resolution and `source=cache` on later reuse.
+8. Verify the command succeeds and creates:
    - `${CLAUDE_PLUGIN_DATA}/runtime-mirror/mise/${platform}/bin/mise`
    - `<shared-root>/.claude/plugins/shared-runtime/mise/${platform}/current/mise`
    - `<shared-root>/.claude/plugins/shared-runtime/mise/${platform}/registry.json`
    - `${CLAUDE_PLUGIN_DATA}/runtime-mirror/mise/${platform}/install-status.env`
    - `${CLAUDE_PLUGIN_DATA}/state/cowork-plugin-context.env`
+   - `${CLAUDE_PLUGIN_DATA}/state/sa-mise-plugin-root`
 
 ## Shared Resolver State
 
