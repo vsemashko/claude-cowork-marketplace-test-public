@@ -79,7 +79,9 @@ Then install `dist/sa-cowork-config-mcp.mcpb` in Claude Desktop and configure:
   var to `CLAUDE_ENV_FILE` so later hooks and Bash commands can prove session
   env visibility
 - the peer hooks intentionally exercise different lookup paths:
-  - `sa-mise` invokes `${CLAUDE_PLUGIN_ROOT}/bin/mise` directly
+  - `sa-mise` invokes `${CLAUDE_PLUGIN_ROOT}/bin/mise` directly on
+    `SessionStart` and later checks same-plugin env visibility on
+    `UserPromptSubmit`
   - `sa-mise-session-start-a` prepends `${CLAUDE_PLUGIN_ROOT}/bin` to `PATH` and
     then invokes bare `mise`
   - `sa-mise-session-start-b` resolves the sibling `sa-mise` plugin through a
@@ -90,12 +92,13 @@ Then install `dist/sa-cowork-config-mcp.mcpb` in Claude Desktop and configure:
 - the hooks are intentionally quiet now: they only execute the runtime probe and
   rely on the command exit status for success or failure
 - `CLAUDE_ENV_FILE` should be treated as the source of persisted session env;
-  `sa-mise-session-start-c` probes whether that env becomes visible to later
-  hook processes as well
+  `sa-mise` and `sa-mise-session-start-c` probe whether that env becomes visible
+  to later hook processes as well
 - every hook command appends one compact result line to:
   `${CLAUDE_PROJECT_DIR}/.sa-mise-hook-results.log` with `ts`, `plugin`,
   `event`, `hook`, `status`, targeted env visibility flags, and the related
-  `PATH` / Claude env values needed to correlate what each hook actually saw
+  `PATH` / Claude env values needed to correlate what each hook actually saw and
+  then appends a full sorted `env` block for that specific hook execution
 
 ## Skill
 
@@ -142,11 +145,12 @@ ${CLAUDE_PLUGIN_ROOT}/bin/mise --version
    probe env var into `CLAUDE_ENV_FILE`.
 6. Run a later Bash command and verify bare `mise` resolves through that
    exported PATH and the probe env var is present.
-7. Trigger `UserPromptSubmit` and verify `sa-mise-session-start-c` logs both a
-   probe for the inherited env var and a probe for bare `mise`, without sourcing
-   `CLAUDE_ENV_FILE`.
+7. Trigger `UserPromptSubmit` and verify `sa-mise` logs a same-plugin env probe
+   while `sa-mise-session-start-c` logs both the inherited env probe and the
+   bare `mise` path probe, without sourcing `CLAUDE_ENV_FILE`.
 8. Inspect `${CLAUDE_PROJECT_DIR}/.sa-mise-hook-results.log` to confirm which
-   hook probe succeeded or failed and which env values were visible to it.
+   hook probe succeeded or failed, then inspect the appended `env_dump` block to
+   see the full environment that hook actually saw.
 
 ## Shared Resolver State
 

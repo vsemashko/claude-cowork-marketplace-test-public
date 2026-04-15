@@ -37,13 +37,20 @@ const PEER_PLUGINS: PluginDefinition[] = [
       'Run the generated peer-safe mise shim exposed by this marketplace fixture.',
     hasHookFixture: true,
     hookSummary:
-      'This fixture includes a minimal SessionStart hook that writes PATH plus a probe env var into CLAUDE_ENV_FILE and exercises its bundled runtime lookup path.',
+      'This fixture includes a minimal SessionStart hook that writes PATH plus a probe env var into CLAUDE_ENV_FILE, exercises its bundled runtime lookup path, and later checks same-plugin env visibility on UserPromptSubmit.',
     hooks: [
       {
         event: 'SessionStart',
         label: 'runtime-probe',
         matcher: '',
         command: '"${CLAUDE_PLUGIN_ROOT:-}/scripts/session-start-sa-mise.sh"',
+      },
+      {
+        event: 'UserPromptSubmit',
+        label: 'probe-env-visible',
+        matcher: '',
+        command:
+          `test "\${${SESSION_ENV_PROBE_VAR}:-}" = "${SESSION_ENV_PROBE_VALUE}"`,
       },
     ],
     extraFiles: [
@@ -248,13 +255,20 @@ function wrapHookCommand(
     'if [ -n "$claude_plugin_root_value" ]; then',
     '  plugin_root_present=true',
     'fi',
+    'append_env_dump() {',
+    '  printf \'env_dump<<__SA_MISE_ENV_DUMP__\\n\' >> "$hook_results_log"',
+    '  env | sort >> "$hook_results_log"',
+    '  printf \'__SA_MISE_ENV_DUMP__\\n\' >> "$hook_results_log"',
+    '}',
     'if',
     hook.command,
     'then',
     `  printf 'ts=%s plugin=%s event=%s hook=%s status=success path_has_plugin_bin=%s env_probe_present=%s claude_env_file_set=%s plugin_root_present=%s path=%s env_probe_value=%s claude_env_file=%s claude_plugin_root=%s claude_project_dir=%s\\n' "$ts" "${pluginName}" "${hook.event}" "${hook.label}" "$path_has_plugin_bin" "$env_probe_present" "$claude_env_file_set" "$plugin_root_present" "$path_value" "$env_probe_value" "$claude_env_file_value" "$claude_plugin_root_value" "$claude_project_dir_value" >> "$hook_results_log"`,
+    '  append_env_dump',
     'else',
     '  status=$?',
     `  printf 'ts=%s plugin=%s event=%s hook=%s status=failure exit_code=%s path_has_plugin_bin=%s env_probe_present=%s claude_env_file_set=%s plugin_root_present=%s path=%s env_probe_value=%s claude_env_file=%s claude_plugin_root=%s claude_project_dir=%s\\n' "$ts" "${pluginName}" "${hook.event}" "${hook.label}" "$status" "$path_has_plugin_bin" "$env_probe_present" "$claude_env_file_set" "$plugin_root_present" "$path_value" "$env_probe_value" "$claude_env_file_value" "$claude_plugin_root_value" "$claude_project_dir_value" >> "$hook_results_log"`,
+    '  append_env_dump',
     '  exit "$status"',
     'fi',
   ].join('\n')

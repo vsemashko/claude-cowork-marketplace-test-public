@@ -292,6 +292,10 @@ function hookResultsLogPath(baseDir: string): string {
   return join(baseDir, 'project', HOOK_RESULTS_LOG_NAME)
 }
 
+function countOccurrences(haystack: string, needle: string): number {
+  return haystack.split(needle).length - 1
+}
+
 function stateFilePath(pluginDataRoot: string): string {
   return join(pluginDataRoot, 'state', 'cowork-plugin-context.env')
 }
@@ -889,6 +893,10 @@ Deno.test('peer SessionStart hooks that do not depend on CLAUDE_ENV_FILE execute
       hookLog,
       'plugin=sa-mise-session-start-b event=SessionStart hook=sibling-probe status=success',
     )
+    assertEquals(countOccurrences(hookLog, 'env_dump<<__SA_MISE_ENV_DUMP__'), 3)
+    assertEquals(countOccurrences(hookLog, '__SA_MISE_ENV_DUMP__'), 6)
+    assertStringIncludes(hookLog, 'CLAUDE_PLUGIN_ROOT=')
+    assertStringIncludes(hookLog, 'PATH=')
   } finally {
     await Deno.remove(baseDir, { recursive: true })
   }
@@ -919,16 +927,19 @@ Deno.test('sa-mise-session-start-b fails clearly when the sibling sa-mise plugin
 
     assertEquals(hookResult.success, false)
     assertStringIncludes(stderr, 'sa-mise plugin not found')
+    const hookLog = await Deno.readTextFile(hookResultsLogPath(baseDir))
     assertStringIncludes(
-      await Deno.readTextFile(hookResultsLogPath(baseDir)),
+      hookLog,
       'plugin=sa-mise-session-start-b event=SessionStart hook=sibling-probe status=failure exit_code=1 path_has_plugin_bin=false env_probe_present=false claude_env_file_set=true plugin_root_present=true',
     )
+    assertEquals(countOccurrences(hookLog, 'env_dump<<__SA_MISE_ENV_DUMP__'), 1)
+    assertStringIncludes(hookLog, `CLAUDE_PLUGIN_ROOT=${pluginRoot}`)
   } finally {
     await Deno.remove(baseDir, { recursive: true })
   }
 })
 
-Deno.test('sa-mise writes PATH and probe env into CLAUDE_ENV_FILE and session-start-c inherits them in UserPromptSubmit', async () => {
+Deno.test('sa-mise writes PATH and probe env into CLAUDE_ENV_FILE and later UserPromptSubmit hooks observe same-plugin and cross-plugin visibility', async () => {
   const baseDir = await Deno.makeTempDir()
 
   try {
@@ -946,6 +957,15 @@ Deno.test('sa-mise writes PATH and probe env into CLAUDE_ENV_FILE and session-st
     const sharedRoot = sharedRootFromPluginRoot(saMiseFixture.pluginRoot)
     const sessionEnvFile = join(baseDir, 'claude-env', 'session.env')
 
+    const envSaMisePrompt = createEnv(
+      baseDir,
+      'sa-mise',
+      downloadLogPath,
+      mockBinDir,
+      sharedRoot,
+    )
+    envSaMisePrompt.CLAUDE_ENV_FILE = sessionEnvFile
+
     const envC = createEnv(
       baseDir,
       'sa-mise-session-start-c',
@@ -954,6 +974,16 @@ Deno.test('sa-mise writes PATH and probe env into CLAUDE_ENV_FILE and session-st
       sharedRoot,
     )
     envC.CLAUDE_ENV_FILE = sessionEnvFile
+
+    const saMisePromptResultsBefore = await runHook(
+      saMiseFixture.pluginRoot,
+      'UserPromptSubmit',
+      envSaMisePrompt,
+    )
+
+    assertEquals(saMisePromptResultsBefore.map((result) => result.success), [
+      false,
+    ])
 
     const hookResultsBefore = await runHook(
       fixtureC.pluginRoot,
@@ -1013,8 +1043,25 @@ Deno.test('sa-mise writes PATH and probe env into CLAUDE_ENV_FILE and session-st
       envC,
     )
 
+    const saMisePromptResultsAfter = await runHookWithSessionEnv(
+      saMiseFixture.pluginRoot,
+      'UserPromptSubmit',
+      envSaMisePrompt,
+    )
+
+    assertEquals(saMisePromptResultsAfter.map((result) => result.success), [
+      true,
+    ])
     assertEquals(hookResultsAfter.map((result) => result.success), [true, true])
     const hookLog = await Deno.readTextFile(hookResultsLogPath(baseDir))
+    assertStringIncludes(
+      hookLog,
+      'plugin=sa-mise event=UserPromptSubmit hook=probe-env-visible status=failure exit_code=1 path_has_plugin_bin=false env_probe_present=false claude_env_file_set=true plugin_root_present=true',
+    )
+    assertStringIncludes(
+      hookLog,
+      'plugin=sa-mise event=UserPromptSubmit hook=probe-env-visible status=success path_has_plugin_bin=true env_probe_present=true claude_env_file_set=true plugin_root_present=true',
+    )
     assertStringIncludes(
       hookLog,
       'plugin=sa-mise-session-start-c event=UserPromptSubmit hook=probe-env-visible status=failure exit_code=1 path_has_plugin_bin=false env_probe_present=false claude_env_file_set=true plugin_root_present=true',
@@ -1030,6 +1077,12 @@ Deno.test('sa-mise writes PATH and probe env into CLAUDE_ENV_FILE and session-st
     assertStringIncludes(
       hookLog,
       'plugin=sa-mise-session-start-c event=UserPromptSubmit hook=probe-path-visible status=success path_has_plugin_bin=true env_probe_present=true claude_env_file_set=true plugin_root_present=true',
+    )
+    assertEquals(countOccurrences(hookLog, 'env_dump<<__SA_MISE_ENV_DUMP__'), 7)
+    assertStringIncludes(hookLog, `CLAUDE_ENV_FILE=${sessionEnvFile}`)
+    assertStringIncludes(
+      hookLog,
+      `SA_MISE_SESSION_ENV_PROBE=${SESSION_ENV_PROBE_VALUE}`,
     )
   } finally {
     await Deno.remove(baseDir, { recursive: true })

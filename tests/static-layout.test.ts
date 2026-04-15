@@ -168,6 +168,10 @@ Deno.test('peer plugins ship identical generated shims and shared helpers', asyn
       ...cwdChangedCommands,
       ...userPromptSubmitCommands,
     ]
+    if (pluginName === 'sa-mise') {
+      assertEquals(sessionStartCommands.length, 1)
+      assertEquals(userPromptSubmitCommands.length, 1)
+    }
     if (pluginName === 'sa-mise-session-start-c') {
       assertEquals(sessionStartCommands.length, 0)
       assertEquals(cwdChangedCommands.length, 0)
@@ -180,8 +184,10 @@ Deno.test('peer plugins ship identical generated shims and shared helpers', asyn
       assertEquals(hookCommand.includes('hook_strategy='), false)
       assertEquals(
         hookCommand.includes('env_dump<<__SA_MISE_ENV_DUMP__'),
-        false,
+        true,
       )
+      assertEquals(hookCommand.includes('__SA_MISE_ENV_DUMP__'), true)
+      assertEquals(hookCommand.includes('env | sort'), true)
       assertEquals(
         hookCommand.includes('hook_input<<__SA_MISE_HOOK_INPUT__'),
         false,
@@ -224,6 +230,12 @@ Deno.test('peer plugins ship identical generated shims and shared helpers', asyn
   assertEquals(
     hookCommands['sa-mise'].some((command) =>
       command.includes('"runtime-probe"')
+    ),
+    true,
+  )
+  assertEquals(
+    hookCommands['sa-mise'].some((command) =>
+      command.includes('"probe-env-visible"')
     ),
     true,
   )

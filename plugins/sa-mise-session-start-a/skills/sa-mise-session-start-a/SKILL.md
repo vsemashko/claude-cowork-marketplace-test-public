@@ -5,8 +5,8 @@ description: Run the generated peer-safe mise shim exposed by SessionStart hook 
 
 # sa-mise-session-start-a
 
-Use this skill when the user wants to run `mise` through the `sa-mise-session-start-a`
-peer fixture.
+Use this skill when the user wants to run `mise` through the
+`sa-mise-session-start-a` peer fixture.
 
 ## Command
 
@@ -38,6 +38,7 @@ ${CLAUDE_PLUGIN_ROOT}/bin/mise <args>
   `<shared-root>/.claude/plugins/shared-runtime/mise/<platform>/`
 - Any peer plugin may run first, recreate the shared symlink, or backfill its
   own mirror from shared state.
-- This fixture includes a minimal SessionStart hook that prepends its bundled bin directory to PATH before invoking bare mise.
+- This fixture includes a minimal SessionStart hook that prepends its bundled
+  bin directory to PATH before invoking bare mise.
 - Shared resolver diagnostics are still captured here for the shim itself:
   `${CLAUDE_PLUGIN_DATA}/state/cowork-plugin-context.env`
