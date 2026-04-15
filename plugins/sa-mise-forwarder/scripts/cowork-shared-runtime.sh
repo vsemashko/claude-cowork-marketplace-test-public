@@ -21,6 +21,8 @@ PLUGIN_DATA_DIR="$COWORK_PLUGIN_DATA"
 PLUGIN_DATA_SOURCE="$COWORK_PLUGIN_DATA_SOURCE"
 SHARED_ROOT="$COWORK_SHARED_ROOT"
 
+[ -n "$SHARED_ROOT" ] || cowork_runtime_fail 'Cowork shared root must resolve before starting the shared runtime.'
+
 PLATFORM="$(cowork_runtime_detect_platform)"
 cowork_runtime_validate_platform "$PLATFORM"
 

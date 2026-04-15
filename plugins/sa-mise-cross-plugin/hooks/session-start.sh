@@ -7,6 +7,9 @@ PLUGIN_ROOT="$(CDPATH= cd -- "$HOOK_DIR/.." && pwd)"
 CONTEXT_HELPER="${PLUGIN_ROOT}/scripts/cowork-plugin-context.sh"
 PLUGIN_DATA_DIR=''
 PLUGIN_DATA_SOURCE=''
+PLUGIN_NAME=''
+SHARED_ROOT=''
+SHARED_ROOT_SOURCE=''
 LOG_FILE=''
 TMP_FILE=''
 
@@ -24,6 +27,9 @@ if [ -x "$CONTEXT_HELPER" ]; then
     eval "$resolved_context"
     PLUGIN_DATA_DIR="$COWORK_PLUGIN_DATA"
     PLUGIN_DATA_SOURCE="$COWORK_PLUGIN_DATA_SOURCE"
+    PLUGIN_NAME="$COWORK_PLUGIN_NAME"
+    SHARED_ROOT="$COWORK_SHARED_ROOT"
+    SHARED_ROOT_SOURCE="$COWORK_SHARED_ROOT_SOURCE"
   fi
 fi
 
@@ -41,7 +47,10 @@ fi
 
 {
   printf 'timestamp=%s\n' "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+  printf 'plugin_name=%s\n' "$PLUGIN_NAME"
   printf 'plugin_data_source=%s\n' "$PLUGIN_DATA_SOURCE"
+  printf 'shared_root=%s\n' "$SHARED_ROOT"
+  printf 'shared_root_source=%s\n' "$SHARED_ROOT_SOURCE"
 } >> "$LOG_FILE"
 
 mkdir -p "${TMPDIR:-/tmp}"
@@ -49,7 +58,7 @@ TMP_FILE="$(mktemp "${TMPDIR:-/tmp}/sa-mise-session-start.XXXXXX")"
 
 if "${PLUGIN_ROOT}/scripts/session-start-sample.ts" >"$TMP_FILE" 2>&1; then
   printf 'hook_status=success\n' >> "$LOG_FILE"
-  grep -E '^(sample_name|plugin_name|mise_version|deno_version)=' "$TMP_FILE" >> "$LOG_FILE" || true
+  grep -E '^(sample_name|random_value|resolved_mise_path|mise_version|deno_version)=' "$TMP_FILE" >> "$LOG_FILE" || true
 else
   printf 'hook_status=failure\n' >> "$LOG_FILE"
   if error_line="$(tail -n 1 "$TMP_FILE" 2>/dev/null)"; then

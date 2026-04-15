@@ -5,14 +5,24 @@ import { dirname, join } from '@std/path'
 const REPO_ROOT = Deno.cwd()
 const INSTALL_SCRIPT_URL = 'https://mise.jdx.dev/install.sh'
 const SESSION_NAME = 'determined-kind-cerf'
+const SHARED_ROOT_ENV_VAR = 'CLAUDE_COWORK_SHARED_ROOT'
 const PEER_PLUGIN_NAMES = [
   'sa-mise',
   'sa-mise-forwarder',
   'sa-mise-cross-plugin',
 ] as const
+const HOOK_PLUGIN_NAMES = [
+  'sa-mise-forwarder',
+  'sa-mise-cross-plugin',
+] as const
+const HOOK_PLUGIN_NAME_SET = new Set<string>(HOOK_PLUGIN_NAMES)
 
 type PluginName = (typeof PEER_PLUGIN_NAMES)[number]
 type Layout = 'guest' | 'session'
+
+function hasHookFixture(pluginName: PluginName): boolean {
+  return HOOK_PLUGIN_NAME_SET.has(pluginName)
+}
 
 async function copyFileWithMode(src: string, dest: string): Promise<void> {
   await Deno.mkdir(dirname(dest), { recursive: true })
@@ -53,14 +63,19 @@ async function createPluginFixture(
   const filesToCopy = [
     '.claude-plugin/plugin.json',
     'bin/mise',
-    'hooks/hooks.json',
-    'hooks/session-start.sh',
     'scripts/cowork-plugin-context.sh',
     'scripts/cowork-runtime-common.sh',
     'scripts/cowork-shared-runtime.sh',
-    'scripts/session-start-sample.ts',
     `skills/${pluginName}/SKILL.md`,
   ]
+
+  if (hasHookFixture(pluginName)) {
+    filesToCopy.push(
+      'hooks/hooks.json',
+      'hooks/session-start.sh',
+      'scripts/session-start-sample.ts',
+    )
+  }
 
   for (const relativePath of filesToCopy) {
     await copyFileWithMode(
@@ -249,13 +264,18 @@ function stateFilePath(pluginDataRoot: string): string {
   return join(pluginDataRoot, 'state', 'cowork-plugin-context.env')
 }
 
+function contextHelperPath(pluginRoot: string): string {
+  return join(pluginRoot, 'scripts', 'cowork-plugin-context.sh')
+}
+
 function createEnv(
   baseDir: string,
   pluginName: PluginName,
   downloadLogPath: string,
   mockBinDir: string,
+  sharedRoot?: string,
 ): Record<string, string> {
-  return {
+  const env: Record<string, string> = {
     CLAUDE_PLUGIN_DATA: join(baseDir, 'plugin-data', pluginName),
     DENO_REAL_BIN: Deno.execPath(),
     HOME: join(baseDir, 'home'),
@@ -264,6 +284,12 @@ function createEnv(
     SA_TEST_DOWNLOAD_LOG: downloadLogPath,
     TMPDIR: join(baseDir, 'tmp'),
   }
+
+  if (sharedRoot) {
+    env[SHARED_ROOT_ENV_VAR] = sharedRoot
+  }
+
+  return env
 }
 
 async function runCommand(
@@ -290,9 +316,15 @@ Deno.test('any peer plugin can cold-start and publish the shared runtime', async
       pluginName,
     )
     const { downloadLogPath, mockBinDir } = await createMockTooling(baseDir)
-    const env = createEnv(baseDir, pluginName, downloadLogPath, mockBinDir)
-    const pluginDataRoot = env.CLAUDE_PLUGIN_DATA
     const sharedRoot = sharedRootFromPluginRoot(pluginRoot)
+    const env = createEnv(
+      baseDir,
+      pluginName,
+      downloadLogPath,
+      mockBinDir,
+      sharedRoot,
+    )
+    const pluginDataRoot = env.CLAUDE_PLUGIN_DATA
 
     const result = await runCommand(join(pluginRoot, 'bin', 'mise'), [
       '--version',
@@ -310,6 +342,10 @@ Deno.test('any peer plugin can cold-start and publish the shared runtime', async
     assertStringIncludes(
       await Deno.readTextFile(stateFilePath(pluginDataRoot)),
       `COWORK_PLUGIN_NAME=${pluginName}`,
+    )
+    assertStringIncludes(
+      await Deno.readTextFile(stateFilePath(pluginDataRoot)),
+      'COWORK_SHARED_ROOT_SOURCE=explicit-env',
     )
     assertStringIncludes(
       await Deno.readTextFile(
@@ -347,6 +383,101 @@ Deno.test('peer plugins derive isolated plugin data paths without explicit env',
       await Deno.readTextFile(stateFilePath(pluginDataRoot)),
       'COWORK_PLUGIN_DATA_SOURCE=layout-discovery',
     )
+    assertStringIncludes(
+      await Deno.readTextFile(stateFilePath(pluginDataRoot)),
+      'COWORK_SHARED_ROOT_SOURCE=layout-discovery',
+    )
+  } finally {
+    await Deno.remove(baseDir, { recursive: true })
+  }
+})
+
+Deno.test('context helper prefers explicit shared-root env when plugin data is provided from env', async () => {
+  const baseDir = await Deno.makeTempDir()
+
+  try {
+    const pluginName = 'sa-mise-forwarder'
+    const customPluginRoot = join(baseDir, 'custom-layout', pluginName)
+
+    await copyFileWithMode(
+      join(REPO_ROOT, 'plugins', pluginName, '.claude-plugin', 'plugin.json'),
+      join(customPluginRoot, '.claude-plugin', 'plugin.json'),
+    )
+    await copyFileWithMode(
+      join(
+        REPO_ROOT,
+        'plugins',
+        pluginName,
+        'scripts',
+        'cowork-plugin-context.sh',
+      ),
+      contextHelperPath(customPluginRoot),
+    )
+
+    const explicitSharedRoot = join(baseDir, 'shared-root')
+    const env = {
+      CLAUDE_PLUGIN_DATA: join(baseDir, 'plugin-data', pluginName),
+      [SHARED_ROOT_ENV_VAR]: explicitSharedRoot,
+    }
+    const result = await runCommand('sh', [
+      contextHelperPath(customPluginRoot),
+      'resolve',
+      '--plugin-root',
+      customPluginRoot,
+    ], env)
+    const stdout = new TextDecoder().decode(result.stdout)
+
+    assertEquals(result.success, true)
+    assertStringIncludes(
+      stdout,
+      `export COWORK_SHARED_ROOT='${explicitSharedRoot}'`,
+    )
+    assertStringIncludes(
+      stdout,
+      "export COWORK_SHARED_ROOT_SOURCE='explicit-env'",
+    )
+  } finally {
+    await Deno.remove(baseDir, { recursive: true })
+  }
+})
+
+Deno.test('context helper fails clearly when plugin data is set but shared root cannot be resolved', async () => {
+  const baseDir = await Deno.makeTempDir()
+
+  try {
+    const pluginName = 'sa-mise-forwarder'
+    const customPluginRoot = join(baseDir, 'custom-layout', pluginName)
+
+    await copyFileWithMode(
+      join(REPO_ROOT, 'plugins', pluginName, '.claude-plugin', 'plugin.json'),
+      join(customPluginRoot, '.claude-plugin', 'plugin.json'),
+    )
+    await copyFileWithMode(
+      join(
+        REPO_ROOT,
+        'plugins',
+        pluginName,
+        'scripts',
+        'cowork-plugin-context.sh',
+      ),
+      contextHelperPath(customPluginRoot),
+    )
+
+    const result = await runCommand('sh', [
+      contextHelperPath(customPluginRoot),
+      'resolve',
+      '--plugin-root',
+      customPluginRoot,
+    ], {
+      CLAUDE_PLUGIN_DATA: join(baseDir, 'plugin-data', pluginName),
+    })
+    const stderr = new TextDecoder().decode(result.stderr)
+
+    assertEquals(result.success, false)
+    assertStringIncludes(
+      stderr,
+      `Unable to resolve Cowork shared root from ${SHARED_ROOT_ENV_VAR} or plugin layout.`,
+    )
   } finally {
     await Deno.remove(baseDir, { recursive: true })
   }
@@ -367,19 +498,21 @@ Deno.test('parallel cold starts trigger one download and backfill both local mir
       'sa-mise-cross-plugin',
     )
     const { downloadLogPath, mockBinDir } = await createMockTooling(baseDir)
+    const sharedRoot = sharedRootFromPluginRoot(pluginA.pluginRoot)
     const envA = createEnv(
       baseDir,
       'sa-mise-forwarder',
       downloadLogPath,
       mockBinDir,
+      sharedRoot,
     )
     const envB = createEnv(
       baseDir,
       'sa-mise-cross-plugin',
       downloadLogPath,
       mockBinDir,
+      sharedRoot,
     )
-    const sharedRoot = sharedRootFromPluginRoot(pluginA.pluginRoot)
 
     const [resultA, resultB] = await Promise.all([
       runCommand(join(pluginA.pluginRoot, 'bin', 'mise'), ['--version'], envA),
@@ -421,14 +554,21 @@ Deno.test('warm peer start reuses the shared runtime and backfills the local mir
       'sa-mise-forwarder',
     )
     const { downloadLogPath, mockBinDir } = await createMockTooling(baseDir)
-    const envA = createEnv(baseDir, 'sa-mise', downloadLogPath, mockBinDir)
+    const sharedRoot = sharedRootFromPluginRoot(pluginA.pluginRoot)
+    const envA = createEnv(
+      baseDir,
+      'sa-mise',
+      downloadLogPath,
+      mockBinDir,
+      sharedRoot,
+    )
     const envB = createEnv(
       baseDir,
       'sa-mise-forwarder',
       downloadLogPath,
       mockBinDir,
+      sharedRoot,
     )
-    const sharedRoot = sharedRootFromPluginRoot(pluginA.pluginRoot)
 
     const first = await runCommand(join(pluginA.pluginRoot, 'bin', 'mise'), [
       '--version',
@@ -466,20 +606,28 @@ Deno.test('broken shared runtime is repaired from another peer mirror and stale 
       'sa-mise-cross-plugin',
     )
     const { downloadLogPath, mockBinDir } = await createMockTooling(baseDir)
-    const envA = createEnv(baseDir, 'sa-mise', downloadLogPath, mockBinDir)
+    const sharedRoot = sharedRootFromPluginRoot(pluginA.pluginRoot)
+    const envA = createEnv(
+      baseDir,
+      'sa-mise',
+      downloadLogPath,
+      mockBinDir,
+      sharedRoot,
+    )
     const envB = createEnv(
       baseDir,
       'sa-mise-forwarder',
       downloadLogPath,
       mockBinDir,
+      sharedRoot,
     )
     const envC = createEnv(
       baseDir,
       'sa-mise-cross-plugin',
       downloadLogPath,
       mockBinDir,
+      sharedRoot,
     )
-    const sharedRoot = sharedRootFromPluginRoot(pluginA.pluginRoot)
     const sharedBinary = sharedRuntimeBinaryPath(sharedRoot)
     const staleBinary = join(baseDir, 'stale', 'bin', 'mise')
     const pluginABinary = runtimeBinaryPath(envA.CLAUDE_PLUGIN_DATA)
@@ -558,7 +706,14 @@ Deno.test('SessionStart hook records plugin-specific samples through the shared 
       pluginName,
     )
     const { downloadLogPath, mockBinDir } = await createMockTooling(baseDir)
-    const env = createEnv(baseDir, pluginName, downloadLogPath, mockBinDir)
+    const sharedRoot = sharedRootFromPluginRoot(pluginRoot)
+    const env = createEnv(
+      baseDir,
+      pluginName,
+      downloadLogPath,
+      mockBinDir,
+      sharedRoot,
+    )
 
     const hookResult = await runCommand(
       join(pluginRoot, 'hooks', 'session-start.sh'),
@@ -569,15 +724,66 @@ Deno.test('SessionStart hook records plugin-specific samples through the shared 
     const logContents = await Deno.readTextFile(logPath)
 
     assertEquals(hookResult.success, true)
+    assertStringIncludes(logContents, 'plugin_name=sa-mise-cross-plugin')
     assertStringIncludes(logContents, 'plugin_data_source=live-env')
+    assertStringIncludes(logContents, `shared_root=${sharedRoot}`)
+    assertStringIncludes(logContents, 'shared_root_source=explicit-env')
     assertStringIncludes(logContents, 'hook_status=success')
     assertStringIncludes(
       logContents,
       'sample_name=sa-mise-cross-plugin-session-start',
     )
-    assertStringIncludes(logContents, 'plugin_name=sa-mise-cross-plugin')
+    assertStringIncludes(logContents, 'resolved_mise_path=')
     assertStringIncludes(logContents, 'mise_version=mise latest test')
     assertStringIncludes(logContents, 'deno_version=')
+    assertStringIncludes(logContents, 'random_value=')
+  } finally {
+    await Deno.remove(baseDir, { recursive: true })
+  }
+})
+
+Deno.test('SessionStart hook logs failures from the sample script with tracing context', async () => {
+  const baseDir = await Deno.makeTempDir()
+
+  try {
+    const pluginName = 'sa-mise-forwarder'
+    const { pluginRoot } = await createPluginFixture(
+      baseDir,
+      'session',
+      pluginName,
+    )
+    const { downloadLogPath, mockBinDir } = await createMockTooling(baseDir)
+    const sharedRoot = sharedRootFromPluginRoot(pluginRoot)
+    const env = createEnv(
+      baseDir,
+      pluginName,
+      downloadLogPath,
+      mockBinDir,
+      sharedRoot,
+    )
+
+    await writeExecutable(
+      join(pluginRoot, 'scripts', 'session-start-sample.ts'),
+      `#!/usr/bin/env -S mise exec deno@latest -- deno run -A
+
+throw new Error('hook sample exploded')
+`,
+    )
+
+    const hookResult = await runCommand(
+      join(pluginRoot, 'hooks', 'session-start.sh'),
+      [],
+      env,
+    )
+    const logPath = join(env.CLAUDE_PLUGIN_DATA, 'logs', 'session-start.log')
+    const logContents = await Deno.readTextFile(logPath)
+
+    assertEquals(hookResult.success, true)
+    assertStringIncludes(logContents, 'plugin_name=sa-mise-forwarder')
+    assertStringIncludes(logContents, `shared_root=${sharedRoot}`)
+    assertStringIncludes(logContents, 'shared_root_source=explicit-env')
+    assertStringIncludes(logContents, 'hook_status=failure')
+    assertStringIncludes(logContents, 'hook_error=')
   } finally {
     await Deno.remove(baseDir, { recursive: true })
   }
@@ -594,7 +800,14 @@ Deno.test('peer shims still fail clearly on unsupported platforms', async () => 
       pluginName,
     )
     const { downloadLogPath, mockBinDir } = await createMockTooling(baseDir)
-    const env = createEnv(baseDir, pluginName, downloadLogPath, mockBinDir)
+    const sharedRoot = sharedRootFromPluginRoot(pluginRoot)
+    const env = createEnv(
+      baseDir,
+      pluginName,
+      downloadLogPath,
+      mockBinDir,
+      sharedRoot,
+    )
     env.SA_MISE_FORCE_PLATFORM = 'windows-x64'
 
     const result = await runCommand(join(pluginRoot, 'bin', 'mise'), [

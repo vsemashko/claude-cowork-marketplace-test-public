@@ -8,6 +8,8 @@ resolved_plugin_data=''
 resolved_source=''
 resolved_state_file=''
 resolved_shared_root=''
+resolved_shared_root_source=''
+shared_root_env_var='CLAUDE_COWORK_SHARED_ROOT'
 
 usage() {
   cat >&2 <<'EOF'
@@ -27,7 +29,7 @@ shell_quote() {
   printf "'%s'" "$escaped"
 }
 
-derive_base_root() {
+derive_layout_shared_root() {
   derived=''
 
   derived="$(printf '%s\n' "$plugin_root" | sed -n 's#^\(.*\/sessions\/[^/][^/]*/mnt\)/.*#\1#p' | head -n 1)"
@@ -61,20 +63,31 @@ read_plugin_name() {
 }
 
 resolve_context() {
-  resolved_shared_root="$(derive_base_root || true)"
+  layout_shared_root="$(derive_layout_shared_root || true)"
 
   if [ -n "${CLAUDE_PLUGIN_DATA:-}" ]; then
     resolved_plugin_data="$CLAUDE_PLUGIN_DATA"
     resolved_source='live-env'
   else
-    [ -n "$resolved_shared_root" ] || fail 'Unable to resolve Cowork plugin data from env or plugin layout.'
     plugin_name="$(read_plugin_name)"
-    resolved_plugin_data="${resolved_shared_root}/.claude/plugins/data/${plugin_name}"
+    [ -n "$layout_shared_root" ] || fail 'Unable to resolve Cowork plugin data from env or plugin layout.'
+    resolved_plugin_data="${layout_shared_root}/.claude/plugins/data/${plugin_name}"
     resolved_source='layout-discovery'
   fi
 
   [ -n "$plugin_name" ] || plugin_name="$(read_plugin_name)"
-  [ -n "$resolved_shared_root" ] || resolved_shared_root="$(derive_base_root || true)"
+
+  explicit_shared_root="$(printenv "$shared_root_env_var" 2>/dev/null || true)"
+  if [ -n "$explicit_shared_root" ]; then
+    resolved_shared_root="$explicit_shared_root"
+    resolved_shared_root_source='explicit-env'
+  elif [ -n "$layout_shared_root" ]; then
+    resolved_shared_root="$layout_shared_root"
+    resolved_shared_root_source='layout-discovery'
+  else
+    fail "Unable to resolve Cowork shared root from ${shared_root_env_var} or plugin layout."
+  fi
+
   resolved_state_file="${resolved_plugin_data}/state/cowork-plugin-context.env"
 }
 
@@ -85,6 +98,7 @@ write_state_file() {
     printf 'COWORK_PLUGIN_DATA_SOURCE=%s\n' "$resolved_source"
     printf 'COWORK_PLUGIN_NAME=%s\n' "$plugin_name"
     printf 'COWORK_SHARED_ROOT=%s\n' "$resolved_shared_root"
+    printf 'COWORK_SHARED_ROOT_SOURCE=%s\n' "$resolved_shared_root_source"
     printf 'CAPTURED_AT=%s\n' "$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
   } > "$resolved_state_file"
 }
@@ -94,6 +108,7 @@ emit_shell() {
   printf 'export COWORK_PLUGIN_DATA_SOURCE=%s\n' "$(shell_quote "$resolved_source")"
   printf 'export COWORK_PLUGIN_NAME=%s\n' "$(shell_quote "$plugin_name")"
   printf 'export COWORK_SHARED_ROOT=%s\n' "$(shell_quote "$resolved_shared_root")"
+  printf 'export COWORK_SHARED_ROOT_SOURCE=%s\n' "$(shell_quote "$resolved_shared_root_source")"
   printf 'export COWORK_PLUGIN_STATE_FILE=%s\n' "$(shell_quote "$resolved_state_file")"
 }
 

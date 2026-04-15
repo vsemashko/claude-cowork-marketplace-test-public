@@ -57,6 +57,8 @@ Then install `dist/sa-cowork-config-mcp.mcpb` in Claude Desktop and configure:
 - `deno task generate` stamps identical shared shim assets into all three peer
   plugins from one source template
 - every peer ships the same committed shim at `${CLAUDE_PLUGIN_ROOT}/bin/mise`
+- Cowork may provide `${CLAUDE_COWORK_SHARED_ROOT}` to pin the shared-runtime
+  base path explicitly
 - each plugin keeps a durable local mirror at:
   `${CLAUDE_PLUGIN_DATA}/runtime-mirror/mise/${platform}/`
 - all peers converge on the same shared session runtime at:
@@ -69,9 +71,12 @@ Then install `dist/sa-cowork-config-mcp.mcpb` in Claude Desktop and configure:
   `${CLAUDE_PLUGIN_DATA}/state/cowork-plugin-context.env`
 - the runtime installs the latest official `mise` binary on first use
 - runtime files never write into `${HOME}`
-- each peer includes a SessionStart hook sample that proves
-  `#!/usr/bin/env -S mise exec deno@latest -- deno run` works for registered
-  hooks too
+- `sa-mise` is the direct shim fixture with no SessionStart hook sample
+- `sa-mise-forwarder` and `sa-mise-cross-plugin` each include a SessionStart
+  hook sample that proves `#!/usr/bin/env -S mise exec deno@latest -- deno run`
+  works for registered hooks too
+- the hook samples emit a random number plus runtime details so trace logs are
+  easy to inspect
 
 ## Skill
 
@@ -112,8 +117,9 @@ ${CLAUDE_PLUGIN_ROOT}/bin/mise --version
    - `<shared-root>/.claude/plugins/shared-runtime/mise/${platform}/current/mise`
    - `<shared-root>/.claude/plugins/shared-runtime/mise/${platform}/registry.json`
    - `${CLAUDE_PLUGIN_DATA}/runtime-mirror/mise/${platform}/install-status.env`
-   - `${CLAUDE_PLUGIN_DATA}/logs/session-start.log`
    - `${CLAUDE_PLUGIN_DATA}/state/cowork-plugin-context.env`
+5. For `sa-mise-forwarder` or `sa-mise-cross-plugin`, trigger SessionStart and
+   verify `${CLAUDE_PLUGIN_DATA}/logs/session-start.log` is written too.
 
 ## Where To Check Hook Logs
 
@@ -124,9 +130,14 @@ The SessionStart hook writes:
 The log file is intentionally minimal. It records:
 
 - `timestamp`
+- `plugin_name`
 - `plugin_data_source`
+- `shared_root`
+- `shared_root_source`
 - `hook_status`
 - `sample_name`
+- `random_value`
+- `resolved_mise_path`
 - `mise_version`
 - `deno_version`
 

@@ -6,7 +6,8 @@ type PluginDefinition = {
   description: string
   skillName: string
   skillDescription: string
-  sampleName: string
+  sampleName?: string
+  hasHookFixture: boolean
 }
 
 const VERSION = '1.0.0'
@@ -23,7 +24,7 @@ const PEER_PLUGINS: PluginDefinition[] = [
     skillName: 'sa-mise',
     skillDescription:
       'Run the generated peer-safe mise shim exposed by this marketplace fixture.',
-    sampleName: 'sa-mise-session-start',
+    hasHookFixture: false,
   },
   {
     name: 'sa-mise-forwarder',
@@ -33,6 +34,7 @@ const PEER_PLUGINS: PluginDefinition[] = [
     skillDescription:
       'Run the generated peer-safe mise shim exposed by the forwarder fixture.',
     sampleName: 'sa-mise-forwarder-session-start',
+    hasHookFixture: true,
   },
   {
     name: 'sa-mise-cross-plugin',
@@ -42,6 +44,7 @@ const PEER_PLUGINS: PluginDefinition[] = [
     skillDescription:
       'Run the generated peer-safe mise shim exposed by the cross-plugin fixture.',
     sampleName: 'sa-mise-cross-plugin-session-start',
+    hasHookFixture: true,
   },
 ]
 
@@ -55,11 +58,14 @@ const EXECUTABLE_TEMPLATE_FILES = new Set([
 
 const SHARED_TEMPLATE_FILES = [
   'bin/mise',
-  'hooks/hooks.json',
-  'hooks/session-start.sh',
   'scripts/cowork-plugin-context.sh',
   'scripts/cowork-runtime-common.sh',
   'scripts/cowork-shared-runtime.sh',
+]
+
+const HOOK_TEMPLATE_FILES = [
+  'hooks/hooks.json',
+  'hooks/session-start.sh',
 ]
 
 const repoRoot = dirname(dirname(fromFileUrl(import.meta.url)))
@@ -109,6 +115,15 @@ function createPluginJson(plugin: PluginDefinition): string {
 }
 
 function createSkillContent(plugin: PluginDefinition): string {
+  const hookNotes = plugin.hasHookFixture
+    ? `- Registered hook logs are written here:
+  \`\${CLAUDE_PLUGIN_DATA}/logs/session-start.log\`
+- Shared resolver diagnostics are captured here:
+  \`\${CLAUDE_PLUGIN_DATA}/state/cowork-plugin-context.env\``
+    : `- This fixture does not include a sample SessionStart hook.
+- Shared resolver diagnostics are captured here:
+  \`\${CLAUDE_PLUGIN_DATA}/state/cowork-plugin-context.env\``
+
   return `---
 name: ${plugin.skillName}
 description: ${plugin.skillDescription}
@@ -149,16 +164,30 @@ If \`mise\` is not on \`PATH\`, fall back to the plugin-local shim path:
   \`<shared-root>/.claude/plugins/shared-runtime/mise/<platform>/\`
 - Any peer plugin may run first, recreate the shared symlink, or backfill its
   own mirror from shared state.
-- Registered hook logs are written here:
-  \`\${CLAUDE_PLUGIN_DATA}/logs/session-start.log\`
-- Shared resolver diagnostics are captured here:
-  \`\${CLAUDE_PLUGIN_DATA}/state/cowork-plugin-context.env\`
+${hookNotes}
 `
 }
 
 function createSessionStartSample(plugin: PluginDefinition): string {
+  if (!plugin.sampleName) {
+    throw new Error(
+      `Hook fixture sample requested for ${plugin.name} without sample name`,
+    )
+  }
+
   return `#!/usr/bin/env -S mise exec deno@latest -- deno run -A
 
+async function resolveMisePath(): Promise<string> {
+  const command = await new Deno.Command('sh', {
+    args: ['-lc', 'command -v mise'],
+    stdout: 'piped',
+    stderr: 'null',
+  }).output()
+
+  return new TextDecoder().decode(command.stdout).trim()
+}
+
+const randomValue = crypto.getRandomValues(new Uint32Array(1))[0]
 const miseVersion = await new Deno.Command('mise', {
   args: ['--version'],
   stdout: 'piped',
@@ -168,6 +197,8 @@ const miseStdout = new TextDecoder().decode(miseVersion.stdout).trim()
 
 console.log('sample_name=${plugin.sampleName}')
 console.log('plugin_name=${plugin.name}')
+console.log(\`random_value=\${randomValue}\`)
+console.log(\`resolved_mise_path=\${await resolveMisePath()}\`)
 console.log(\`mise_version=\${miseStdout}\`)
 console.log(\`deno_version=\${Deno.version.deno}\`)
 `
@@ -216,6 +247,12 @@ async function generatePeerPlugin(plugin: PluginDefinition): Promise<void> {
     await copySharedTemplate(relativePath, pluginRoot)
   }
 
+  if (plugin.hasHookFixture) {
+    for (const relativePath of HOOK_TEMPLATE_FILES) {
+      await copySharedTemplate(relativePath, pluginRoot)
+    }
+  }
+
   await writeFile(
     join(pluginRoot, '.claude-plugin', 'plugin.json'),
     createPluginJson(plugin),
@@ -224,13 +261,21 @@ async function generatePeerPlugin(plugin: PluginDefinition): Promise<void> {
     join(pluginRoot, 'skills', plugin.skillName, 'SKILL.md'),
     createSkillContent(plugin),
   )
-  await writeFile(
-    join(pluginRoot, 'scripts', 'session-start-sample.ts'),
-    createSessionStartSample(plugin),
-    true,
-  )
+  if (plugin.hasHookFixture) {
+    await writeFile(
+      join(pluginRoot, 'scripts', 'session-start-sample.ts'),
+      createSessionStartSample(plugin),
+      true,
+    )
+  }
 
   await removeIfExists(join(pluginRoot, 'scripts', 'runtime-shim.sh'))
+  await removeIfExists(join(pluginRoot, 'hooks', 'session-start.ts'))
+
+  if (!plugin.hasHookFixture) {
+    await removeIfExists(join(pluginRoot, 'hooks'))
+    await removeIfExists(join(pluginRoot, 'scripts', 'session-start-sample.ts'))
+  }
 }
 
 for (const plugin of PEER_PLUGINS) {

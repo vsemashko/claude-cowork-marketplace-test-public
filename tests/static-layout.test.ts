@@ -7,6 +7,11 @@ const PEER_PLUGIN_NAMES = [
   'sa-mise-forwarder',
   'sa-mise-cross-plugin',
 ] as const
+const HOOK_PLUGIN_NAMES = [
+  'sa-mise-forwarder',
+  'sa-mise-cross-plugin',
+] as const
+const HOOK_PLUGIN_NAME_SET = new Set<string>(HOOK_PLUGIN_NAMES)
 
 const REPO_ROOT = Deno.cwd()
 
@@ -71,16 +76,23 @@ Deno.test('peer plugins ship identical generated shims and shared helpers', asyn
     )
     assertEquals(
       await exists(join(pluginRoot, 'scripts', 'session-start-sample.ts')),
-      true,
+      HOOK_PLUGIN_NAME_SET.has(pluginName),
     )
     assertEquals(
       await exists(join(pluginRoot, 'skills', pluginName, 'SKILL.md')),
       true,
     )
-    assertEquals(await exists(join(pluginRoot, 'hooks', 'hooks.json')), true)
     assertEquals(
       await exists(join(pluginRoot, 'hooks', 'session-start.sh')),
-      true,
+      HOOK_PLUGIN_NAME_SET.has(pluginName),
+    )
+    assertEquals(
+      await exists(join(pluginRoot, 'hooks', 'hooks.json')),
+      HOOK_PLUGIN_NAME_SET.has(pluginName),
+    )
+    assertEquals(
+      await exists(join(pluginRoot, 'hooks', 'session-start.ts')),
+      false,
     )
     assertEquals(await exists(join(pluginRoot, 'bin', 'deno')), false)
     assertEquals(await exists(join(pluginRoot, 'deps')), false)
