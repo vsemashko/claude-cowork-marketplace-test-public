@@ -6,6 +6,11 @@ const REPO_ROOT = Deno.cwd()
 const INSTALL_SCRIPT_URL = 'https://mise.jdx.dev/install.sh'
 const SESSION_NAME = 'determined-kind-cerf'
 const SHARED_ROOT_ENV_VAR = 'CLAUDE_COWORK_SHARED_ROOT'
+const HOOK_INPUT_PAYLOAD = JSON.stringify({
+  cwd: '/tmp/claude-session',
+  event: 'SessionStart',
+  source: 'test-fixture',
+})
 const PEER_PLUGIN_NAMES = [
   'sa-mise',
   'sa-mise-session-start-a',
@@ -287,9 +292,12 @@ function createEnv(
 ): Record<string, string> {
   const env: Record<string, string> = {
     CLAUDE_PLUGIN_DATA: join(baseDir, 'plugin-data', pluginName),
+    CLAUDE_PROJECT_DIR: join(baseDir, 'project'),
+    CLAUDE_ENV_FILE: join(baseDir, 'claude-env', `${pluginName}.env`),
+    CLAUDE_CODE_REMOTE: '1',
     DENO_REAL_BIN: Deno.execPath(),
     HOME: join(baseDir, 'home'),
-    PATH: `${mockBinDir}:${Deno.env.get('PATH') ?? ''}`,
+    PATH: `${mockBinDir}:/usr/bin:/bin`,
     SA_MISE_FORCE_PLATFORM: 'linux-arm64',
     SA_TEST_DOWNLOAD_LOG: downloadLogPath,
     TMPDIR: join(baseDir, 'tmp'),
@@ -306,13 +314,23 @@ async function runCommand(
   command: string,
   args: string[],
   env: Record<string, string>,
+  stdinText?: string,
 ) {
-  return await new Deno.Command(command, {
+  const child = new Deno.Command(command, {
     args,
     env,
+    stdin: stdinText === undefined ? 'null' : 'piped',
     stderr: 'piped',
     stdout: 'piped',
-  }).output()
+  }).spawn()
+
+  if (stdinText !== undefined) {
+    const writer = child.stdin.getWriter()
+    await writer.write(new TextEncoder().encode(stdinText))
+    await writer.close()
+  }
+
+  return await child.output()
 }
 
 async function runSessionStartHook(
@@ -322,8 +340,8 @@ async function runSessionStartHook(
   const hookCommand = await readSessionStartCommand(pluginRoot)
   return await runCommand('sh', ['-eu', '-c', hookCommand], {
     ...env,
-    PATH: `${join(pluginRoot, 'bin')}:${env.PATH}`,
-  })
+    CLAUDE_PLUGIN_ROOT: pluginRoot,
+  }, HOOK_INPUT_PAYLOAD)
 }
 
 Deno.test('any peer plugin can cold-start and publish the shared runtime', async () => {
@@ -726,6 +744,9 @@ Deno.test('all peer SessionStart hooks append sample output to the shared home l
       'session',
       'sa-mise',
     )
+    const fixtureRoots: Partial<Record<PluginName, string>> = {
+      'sa-mise': firstFixture.pluginRoot,
+    }
     const sharedRoot = sharedRootFromPluginRoot(firstFixture.pluginRoot)
     const sharedLog = sharedHookLogPath(join(baseDir, 'home'))
 
@@ -733,6 +754,7 @@ Deno.test('all peer SessionStart hooks append sample output to the shared home l
       const { pluginRoot } = pluginName === 'sa-mise'
         ? firstFixture
         : await createPluginFixture(baseDir, 'session', pluginName)
+      fixtureRoots[pluginName] = pluginRoot
       const env = createEnv(
         baseDir,
         pluginName,
@@ -751,25 +773,94 @@ Deno.test('all peer SessionStart hooks append sample output to the shared home l
     assertEquals(await exists(sharedLog), true)
     assertStringIncludes(logContents, 'hook_status=success')
     assertStringIncludes(logContents, 'plugin_name=sa-mise')
+    assertStringIncludes(logContents, 'hook_strategy=direct-plugin-root')
     assertStringIncludes(logContents, 'sample_name=sa-mise-session-start')
+    assertStringIncludes(
+      logContents,
+      `attempted_binary_path=${join(firstFixture.pluginRoot, 'bin', 'mise')}`,
+    )
     assertStringIncludes(logContents, 'plugin_name=sa-mise-session-start-a')
+    assertStringIncludes(logContents, 'hook_strategy=path-prepend')
     assertStringIncludes(
       logContents,
       'sample_name=sa-mise-session-start-a-session-start',
     )
+    assertStringIncludes(
+      logContents,
+      `PATH_after_strategy=${
+        join(
+          fixtureRoots['sa-mise-session-start-a']!,
+          'bin',
+        )
+      }:`,
+    )
     assertStringIncludes(logContents, 'plugin_name=sa-mise-session-start-b')
+    assertStringIncludes(logContents, 'hook_strategy=cross-plugin-sa-mise')
     assertStringIncludes(
       logContents,
       'sample_name=sa-mise-session-start-b-session-start',
     )
+    assertStringIncludes(
+      logContents,
+      `resolved_cross_plugin_root=${fixtureRoots['sa-mise']!}`,
+    )
     assertStringIncludes(logContents, 'mise_version=mise latest test')
     assertStringIncludes(logContents, 'deno_version=')
+    assertStringIncludes(logContents, 'hook_input<<__SA_MISE_HOOK_INPUT__')
+    assertStringIncludes(logContents, HOOK_INPUT_PAYLOAD)
+    assertStringIncludes(logContents, 'env_dump<<__SA_MISE_ENV_DUMP__')
+    assertStringIncludes(logContents, 'CLAUDE_ENV_FILE=')
+    assertStringIncludes(logContents, 'CLAUDE_PROJECT_DIR=')
+    assertStringIncludes(logContents, 'CLAUDE_CODE_REMOTE=1')
+    assertStringIncludes(logContents, 'PATH_before_strategy=')
+    assertStringIncludes(logContents, 'PATH_after_strategy=')
+    assertStringIncludes(logContents, 'command_v_mise_before_strategy=')
+    assertStringIncludes(logContents, 'command_v_mise_after_strategy=')
+    assertStringIncludes(
+      logContents,
+      'command_v_mise_after_strategy=/',
+    )
+    assertStringIncludes(logContents, 'resolved_cross_plugin_root=')
   } finally {
     await Deno.remove(baseDir, { recursive: true })
   }
 })
 
-Deno.test('SessionStart hook logs forced failures into the shared home log', async () => {
+Deno.test('sa-mise-session-start-b fails clearly when the sibling sa-mise plugin is missing', async () => {
+  const baseDir = await Deno.makeTempDir()
+
+  try {
+    const pluginName = 'sa-mise-session-start-b'
+    const { pluginRoot } = await createPluginFixture(
+      baseDir,
+      'session',
+      pluginName,
+    )
+    const { downloadLogPath, mockBinDir } = await createMockTooling(baseDir)
+    const sharedRoot = sharedRootFromPluginRoot(pluginRoot)
+    const env = createEnv(
+      baseDir,
+      pluginName,
+      downloadLogPath,
+      mockBinDir,
+      sharedRoot,
+    )
+
+    const hookResult = await runSessionStartHook(pluginRoot, env)
+    const logPath = sharedHookLogPath(env.HOME)
+    const logContents = await Deno.readTextFile(logPath)
+
+    assertEquals(hookResult.success, true)
+    assertStringIncludes(logContents, 'plugin_name=sa-mise-session-start-b')
+    assertStringIncludes(logContents, 'hook_strategy=cross-plugin-sa-mise')
+    assertStringIncludes(logContents, 'hook_status=failure')
+    assertStringIncludes(logContents, 'sa-mise plugin not found')
+  } finally {
+    await Deno.remove(baseDir, { recursive: true })
+  }
+})
+
+Deno.test('SessionStart hook logs forced failures with diagnostic context', async () => {
   const baseDir = await Deno.makeTempDir()
 
   try {
@@ -797,8 +888,12 @@ Deno.test('SessionStart hook logs forced failures into the shared home log', asy
 
     assertEquals(hookResult.success, true)
     assertStringIncludes(logContents, 'plugin_name=sa-mise-session-start-a')
+    assertStringIncludes(logContents, 'hook_strategy=path-prepend')
     assertStringIncludes(logContents, 'hook_status=failure')
     assertStringIncludes(logContents, 'forced failure')
+    assertStringIncludes(logContents, 'PATH_before_strategy=')
+    assertStringIncludes(logContents, 'PATH_after_strategy=')
+    assertStringIncludes(logContents, 'command_v_mise_after_strategy=')
   } finally {
     await Deno.remove(baseDir, { recursive: true })
   }

@@ -11,7 +11,7 @@
   "plugins": [
     {
       "name": "sa-mise",
-      "description": "Primary peer Cowork fixture that bootstraps and shares the latest mise binary through the generated shared shim",
+      "description": "Primary peer Cowork fixture whose SessionStart hook invokes the local mise shim through ${CLAUDE_PLUGIN_ROOT}/bin/mise",
       "version": "1.0.0",
       "category": "core",
       "source": "./plugins/sa-mise",
@@ -22,7 +22,7 @@
     },
     {
       "name": "sa-mise-session-start-a",
-      "description": "Peer Cowork fixture with a SessionStart sample that uses the same generated mise shim as every other peer",
+      "description": "Peer Cowork fixture whose SessionStart hook prepends its own bin directory to PATH before invoking bare mise",
       "version": "1.0.0",
       "category": "core",
       "source": "./plugins/sa-mise-session-start-a",
@@ -33,7 +33,7 @@
     },
     {
       "name": "sa-mise-session-start-b",
-      "description": "Peer Cowork fixture with a SessionStart sample that uses the same generated mise shim as every other peer",
+      "description": "Peer Cowork fixture whose SessionStart hook resolves the sibling sa-mise plugin and invokes its mise shim directly",
       "version": "1.0.0",
       "category": "core",
       "source": "./plugins/sa-mise-session-start-b",

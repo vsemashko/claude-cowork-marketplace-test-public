@@ -42,6 +42,8 @@ Deno.test('peer plugins ship identical generated shims and shared helpers', asyn
     join(firstPluginRoot, 'scripts', 'cowork-plugin-context.sh'),
   )
 
+  const hookCommands: Record<string, string> = {}
+
   for (const pluginName of PEER_PLUGIN_NAMES) {
     const pluginRoot = join(REPO_ROOT, 'plugins', pluginName)
     const pluginConfig = JSON.parse(
@@ -130,17 +132,59 @@ Deno.test('peer plugins ship identical generated shims and shared helpers', asyn
     }
     const sessionStartCommand = hooksConfig.hooks.SessionStart[0]?.hooks[0]
       ?.command ?? ''
+    hookCommands[pluginName] = sessionStartCommand
 
     assertEquals(sessionStartCommand.includes('session-start.sh'), false)
     assertEquals(
       sessionStartCommand.includes('session-start-sample.ts'),
       false,
     )
+    assertEquals(sessionStartCommand.includes('hook_strategy='), true)
     assertEquals(
-      sessionStartCommand.includes('mise exec deno@latest'),
+      sessionStartCommand.includes('env_dump<<__SA_MISE_ENV_DUMP__'),
+      true,
+    )
+    assertEquals(
+      sessionStartCommand.includes('hook_input<<__SA_MISE_HOOK_INPUT__'),
       true,
     )
   }
+
+  assertEquals(
+    hookCommands['sa-mise'].includes('${CLAUDE_PLUGIN_ROOT:-}/bin/mise'),
+    true,
+  )
+  assertEquals(
+    hookCommands['sa-mise-session-start-a'].includes(
+      'PATH="${CLAUDE_PLUGIN_ROOT:-}/bin:${PATH}"',
+    ),
+    true,
+  )
+  assertEquals(
+    hookCommands['sa-mise-session-start-b'].includes(
+      'sa-mise plugin not found',
+    ),
+    true,
+  )
+  assertEquals(
+    hookCommands['sa-mise-session-start-b'].includes(
+      'resolved_cross_plugin_root',
+    ),
+    true,
+  )
+  assertEquals(
+    hookCommands['sa-mise'] === hookCommands['sa-mise-session-start-a'],
+    false,
+  )
+  assertEquals(
+    hookCommands['sa-mise-session-start-a'] ===
+      hookCommands['sa-mise-session-start-b'],
+    false,
+  )
+  assertEquals(
+    hookCommands['sa-mise'] === hookCommands['sa-mise-session-start-b'],
+    false,
+  )
 })
 
 Deno.test('config MCPB bundle exists and keeps the expected config contract', async () => {
