@@ -12,6 +12,7 @@ type PluginDefinition = {
     event: 'SessionStart' | 'CwdChanged' | 'FileChanged' | 'UserPromptSubmit'
     label: string
     matcher?: string
+    setup?: string
     command: string
   }>
   extraFiles?: Array<{ path: string; content: string; executable?: boolean }>
@@ -81,8 +82,9 @@ const PEER_PLUGINS: PluginDefinition[] = [
         event: 'SessionStart',
         label: 'path-probe',
         matcher: '',
+        setup: 'PATH="${CLAUDE_PLUGIN_ROOT:-}/bin:${PATH}"',
         command:
-          'PATH="${CLAUDE_PLUGIN_ROOT:-}/bin:${PATH}" mise exec deno@latest -- deno eval \'Deno.exit(0)\' >/dev/null 2>&1',
+          "mise exec deno@latest -- deno eval 'Deno.exit(0)' >/dev/null 2>&1",
       },
     ],
   },
@@ -150,25 +152,17 @@ const PEER_PLUGINS: PluginDefinition[] = [
     hooks: [
       {
         event: 'UserPromptSubmit',
-        label: 'inherited-env-and-path-probe',
+        label: 'probe-env-visible',
         matcher: '',
         command:
-          '"${CLAUDE_PLUGIN_ROOT:-}/scripts/user-prompt-submit-sa-mise.sh"',
-      },
-    ],
-    extraFiles: [
-      {
-        path: 'scripts/user-prompt-submit-sa-mise.sh',
-        executable: true,
-        content: [
-          '#!/bin/sh',
-          '',
-          'set -eu',
-          '',
           `test "\${${SESSION_ENV_PROBE_VAR}:-}" = "${SESSION_ENV_PROBE_VALUE}"`,
-          '',
+      },
+      {
+        event: 'UserPromptSubmit',
+        label: 'probe-path-visible',
+        matcher: '',
+        command:
           "mise exec deno@latest -- deno eval 'Deno.exit(0)' >/dev/null 2>&1",
-        ].join('\n'),
       },
     ],
   },
@@ -224,13 +218,43 @@ function wrapHookCommand(
   return [
     `hook_results_log="\${CLAUDE_PROJECT_DIR:-\${PWD:-.}}/${HOOK_RESULTS_LOG_NAME}"`,
     'mkdir -p "$(dirname "$hook_results_log")"',
+    ...(hook.setup ? [hook.setup] : []),
+    'path_value="${PATH:-}"',
+    `env_probe_value="\${${SESSION_ENV_PROBE_VAR}:-}"`,
+    'claude_env_file_value="${CLAUDE_ENV_FILE:-}"',
+    'claude_plugin_root_value="${CLAUDE_PLUGIN_ROOT:-}"',
+    'claude_project_dir_value="${CLAUDE_PROJECT_DIR:-}"',
+    'ts="$(date -u +%Y-%m-%dT%H:%M:%SZ)"',
+    'path_has_plugin_bin=false',
+    'if [ -n "$claude_plugin_root_value" ]; then',
+    '  case ":$path_value:" in',
+    '    *:"$claude_plugin_root_value/bin":*) path_has_plugin_bin=true ;;',
+    '  esac',
+    'fi',
+    'if [ "$path_has_plugin_bin" != "true" ]; then',
+    '  case ":$path_value:" in',
+    '    *:*/.remote-plugins/*/bin:*|*:*/cowork_plugins/*/bin:*) path_has_plugin_bin=true ;;',
+    '  esac',
+    'fi',
+    'env_probe_present=false',
+    'if [ -n "$env_probe_value" ]; then',
+    '  env_probe_present=true',
+    'fi',
+    'claude_env_file_set=false',
+    'if [ -n "$claude_env_file_value" ]; then',
+    '  claude_env_file_set=true',
+    'fi',
+    'plugin_root_present=false',
+    'if [ -n "$claude_plugin_root_value" ]; then',
+    '  plugin_root_present=true',
+    'fi',
     'if',
     hook.command,
     'then',
-    `  printf 'plugin=%s event=%s hook=%s status=success\\n' "${pluginName}" "${hook.event}" "${hook.label}" >> "$hook_results_log"`,
+    `  printf 'ts=%s plugin=%s event=%s hook=%s status=success path_has_plugin_bin=%s env_probe_present=%s claude_env_file_set=%s plugin_root_present=%s path=%s env_probe_value=%s claude_env_file=%s claude_plugin_root=%s claude_project_dir=%s\\n' "$ts" "${pluginName}" "${hook.event}" "${hook.label}" "$path_has_plugin_bin" "$env_probe_present" "$claude_env_file_set" "$plugin_root_present" "$path_value" "$env_probe_value" "$claude_env_file_value" "$claude_plugin_root_value" "$claude_project_dir_value" >> "$hook_results_log"`,
     'else',
     '  status=$?',
-    `  printf 'plugin=%s event=%s hook=%s status=failure exit_code=%s\\n' "${pluginName}" "${hook.event}" "${hook.label}" "$status" >> "$hook_results_log"`,
+    `  printf 'ts=%s plugin=%s event=%s hook=%s status=failure exit_code=%s path_has_plugin_bin=%s env_probe_present=%s claude_env_file_set=%s plugin_root_present=%s path=%s env_probe_value=%s claude_env_file=%s claude_plugin_root=%s claude_project_dir=%s\\n' "$ts" "${pluginName}" "${hook.event}" "${hook.label}" "$status" "$path_has_plugin_bin" "$env_probe_present" "$claude_env_file_set" "$plugin_root_present" "$path_value" "$env_probe_value" "$claude_env_file_value" "$claude_plugin_root_value" "$claude_project_dir_value" >> "$hook_results_log"`,
     '  exit "$status"',
     'fi',
   ].join('\n')

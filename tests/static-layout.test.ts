@@ -43,7 +43,7 @@ Deno.test('peer plugins ship identical generated shims and shared helpers', asyn
     join(firstPluginRoot, 'scripts', 'cowork-plugin-context.sh'),
   )
 
-  const hookCommands: Record<string, string> = {}
+  const hookCommands: Record<string, string[]> = {}
 
   for (const pluginName of PEER_PLUGIN_NAMES) {
     const pluginRoot = join(REPO_ROOT, 'plugins', pluginName)
@@ -88,7 +88,7 @@ Deno.test('peer plugins ship identical generated shims and shared helpers', asyn
       await exists(
         join(pluginRoot, 'scripts', 'user-prompt-submit-sa-mise.sh'),
       ),
-      pluginName === 'sa-mise-session-start-c',
+      false,
     )
     assertEquals(
       await exists(join(pluginRoot, 'scripts', 'session-start-sample.ts')),
@@ -147,21 +147,6 @@ Deno.test('peer plugins ship identical generated shims and shared helpers', asyn
         true,
       )
     }
-    if (pluginName === 'sa-mise-session-start-c') {
-      assertEquals(
-        (await Deno.readTextFile(
-          join(pluginRoot, 'scripts', 'user-prompt-submit-sa-mise.sh'),
-        )).includes('>/dev/null 2>&1'),
-        true,
-      )
-      assertEquals(
-        (await Deno.readTextFile(
-          join(pluginRoot, 'scripts', 'user-prompt-submit-sa-mise.sh'),
-        )).includes('SA_MISE_SESSION_ENV_PROBE'),
-        true,
-      )
-    }
-
     const hooksConfig = JSON.parse(
       await Deno.readTextFile(join(pluginRoot, 'hooks', 'hooks.json')),
     ) as {
@@ -172,122 +157,154 @@ Deno.test('peer plugins ship identical generated shims and shared helpers', asyn
         }>
       >
     }
-    const sessionStartCommand = hooksConfig.hooks.SessionStart?.[0]?.hooks[0]
-      ?.command ?? ''
-    const cwdChangedCommand = hooksConfig.hooks.CwdChanged?.[0]?.hooks[0]
-      ?.command ?? ''
-    const userPromptSubmitCommand = hooksConfig.hooks.UserPromptSubmit?.[0]
-      ?.hooks[0]?.command ?? ''
-    hookCommands[pluginName] = sessionStartCommand || cwdChangedCommand ||
-      userPromptSubmitCommand
+    const sessionStartCommands = (hooksConfig.hooks.SessionStart ?? [])
+      .flatMap((matcher) => matcher.hooks.map((hook) => hook.command))
+    const cwdChangedCommands = (hooksConfig.hooks.CwdChanged ?? [])
+      .flatMap((matcher) => matcher.hooks.map((hook) => hook.command))
+    const userPromptSubmitCommands = (hooksConfig.hooks.UserPromptSubmit ?? [])
+      .flatMap((matcher) => matcher.hooks.map((hook) => hook.command))
+    hookCommands[pluginName] = [
+      ...sessionStartCommands,
+      ...cwdChangedCommands,
+      ...userPromptSubmitCommands,
+    ]
     if (pluginName === 'sa-mise-session-start-c') {
-      assertEquals(sessionStartCommand, '')
-      assertEquals(cwdChangedCommand, '')
-      assertEquals(
-        userPromptSubmitCommand.includes('user-prompt-submit-sa-mise.sh'),
-        true,
-      )
+      assertEquals(sessionStartCommands.length, 0)
+      assertEquals(cwdChangedCommands.length, 0)
+      assertEquals(userPromptSubmitCommands.length, 2)
     }
 
-    assertEquals(hookCommands[pluginName].includes('session-start.sh'), false)
-    assertEquals(
-      hookCommands[pluginName].includes('session-start-sample.ts'),
-      false,
-    )
-    assertEquals(hookCommands[pluginName].includes('hook_strategy='), false)
-    assertEquals(
-      hookCommands[pluginName].includes('env_dump<<__SA_MISE_ENV_DUMP__'),
-      false,
-    )
-    assertEquals(
-      hookCommands[pluginName].includes('hook_input<<__SA_MISE_HOOK_INPUT__'),
-      false,
-    )
-    assertEquals(
-      hookCommands[pluginName].includes('.sa-mise-session-start.log'),
-      false,
-    )
-    assertEquals(
-      hookCommands[pluginName].includes('.sa-mise-hook-results.log'),
-      true,
-    )
+    for (const hookCommand of hookCommands[pluginName]) {
+      assertEquals(hookCommand.includes('session-start.sh'), false)
+      assertEquals(hookCommand.includes('session-start-sample.ts'), false)
+      assertEquals(hookCommand.includes('hook_strategy='), false)
+      assertEquals(
+        hookCommand.includes('env_dump<<__SA_MISE_ENV_DUMP__'),
+        false,
+      )
+      assertEquals(
+        hookCommand.includes('hook_input<<__SA_MISE_HOOK_INPUT__'),
+        false,
+      )
+      assertEquals(
+        hookCommand.includes('.sa-mise-session-start.log'),
+        false,
+      )
+      assertEquals(
+        hookCommand.includes('.sa-mise-hook-results.log'),
+        true,
+      )
+      assertEquals(hookCommand.includes('ts='), true)
+      assertEquals(hookCommand.includes('path_has_plugin_bin='), true)
+      assertEquals(hookCommand.includes('env_probe_present='), true)
+      assertEquals(hookCommand.includes('claude_env_file_set='), true)
+      assertEquals(hookCommand.includes('plugin_root_present='), true)
+      assertEquals(hookCommand.includes('path=%s'), true)
+      assertEquals(hookCommand.includes('env_probe_value=%s'), true)
+      assertEquals(hookCommand.includes('claude_env_file=%s'), true)
+      assertEquals(hookCommand.includes('claude_plugin_root=%s'), true)
+      assertEquals(hookCommand.includes('claude_project_dir=%s'), true)
+    }
     if (pluginName !== 'sa-mise' && pluginName !== 'sa-mise-session-start-c') {
       assertEquals(
-        hookCommands[pluginName].includes('>/dev/null 2>&1'),
+        hookCommands[pluginName].some((command) =>
+          command.includes('>/dev/null 2>&1')
+        ),
         true,
       )
     }
   }
 
   assertEquals(
-    hookCommands['sa-mise'].includes('session-start-sa-mise.sh'),
-    true,
-  )
-  assertEquals(hookCommands['sa-mise'].includes('"runtime-probe"'), true)
-  assertEquals(
-    hookCommands['sa-mise-session-start-a'].includes(
-      'PATH="${CLAUDE_PLUGIN_ROOT:-}/bin:${PATH}"',
+    hookCommands['sa-mise'].some((command) =>
+      command.includes('session-start-sa-mise.sh')
     ),
     true,
   )
   assertEquals(
-    hookCommands['sa-mise-session-start-a'].includes('"path-probe"'),
-    true,
-  )
-  assertEquals(
-    hookCommands['sa-mise-session-start-b'].includes(
-      'find-sa-mise-sibling.sh',
+    hookCommands['sa-mise'].some((command) =>
+      command.includes('"runtime-probe"')
     ),
     true,
   )
   assertEquals(
-    hookCommands['sa-mise-session-start-b'].includes('"sibling-probe"'),
-    true,
-  )
-  assertEquals(
-    hookCommands['sa-mise-session-start-b'].includes('plugin_parent='),
-    false,
-  )
-  assertEquals(
-    hookCommands['sa-mise-session-start-c'].includes(
-      'user-prompt-submit-sa-mise.sh',
+    hookCommands['sa-mise-session-start-a'].some((command) =>
+      command.includes('PATH="${CLAUDE_PLUGIN_ROOT:-}/bin:${PATH}"')
     ),
     true,
   )
   assertEquals(
-    hookCommands['sa-mise-session-start-c'].includes(
-      '"inherited-env-and-path-probe"',
+    hookCommands['sa-mise-session-start-a'].some((command) =>
+      command.includes('"path-probe"')
     ),
     true,
   )
   assertEquals(
-    hookCommands['sa-mise-session-start-c'].includes(
-      'find-sa-mise-sibling.sh',
+    hookCommands['sa-mise-session-start-b'].some((command) =>
+      command.includes('find-sa-mise-sibling.sh')
+    ),
+    true,
+  )
+  assertEquals(
+    hookCommands['sa-mise-session-start-b'].some((command) =>
+      command.includes('"sibling-probe"')
+    ),
+    true,
+  )
+  assertEquals(
+    hookCommands['sa-mise-session-start-b'].some((command) =>
+      command.includes('plugin_parent=')
     ),
     false,
   )
   assertEquals(
-    hookCommands['sa-mise-session-start-c'].includes(
-      'SA_MISE_SESSION_ENV_PROBE',
+    hookCommands['sa-mise-session-start-c'].some((command) =>
+      command.includes('user-prompt-submit-sa-mise.sh')
     ),
     false,
   )
   assertEquals(
-    hookCommands['sa-mise'] === hookCommands['sa-mise-session-start-a'],
+    hookCommands['sa-mise-session-start-c'].some((command) =>
+      command.includes('"probe-env-visible"')
+    ),
+    true,
+  )
+  assertEquals(
+    hookCommands['sa-mise-session-start-c'].some((command) =>
+      command.includes('"probe-path-visible"')
+    ),
+    true,
+  )
+  assertEquals(
+    hookCommands['sa-mise-session-start-c'].some((command) =>
+      command.includes('find-sa-mise-sibling.sh')
+    ),
     false,
   )
   assertEquals(
-    hookCommands['sa-mise-session-start-a'] ===
-      hookCommands['sa-mise-session-start-b'],
+    hookCommands['sa-mise-session-start-c'].some((command) =>
+      command.includes('SA_MISE_SESSION_ENV_PROBE')
+    ),
+    true,
+  )
+  assertEquals(
+    hookCommands['sa-mise'].join('\n') ===
+      hookCommands['sa-mise-session-start-a'].join('\n'),
     false,
   )
   assertEquals(
-    hookCommands['sa-mise'] === hookCommands['sa-mise-session-start-b'],
+    hookCommands['sa-mise-session-start-a'].join('\n') ===
+      hookCommands['sa-mise-session-start-b'].join('\n'),
     false,
   )
   assertEquals(
-    hookCommands['sa-mise-session-start-b'] ===
-      hookCommands['sa-mise-session-start-c'],
+    hookCommands['sa-mise'].join('\n') ===
+      hookCommands['sa-mise-session-start-b'].join('\n'),
+    false,
+  )
+  assertEquals(
+    hookCommands['sa-mise-session-start-b'].join('\n') ===
+      hookCommands['sa-mise-session-start-c'].join('\n'),
     false,
   )
 })

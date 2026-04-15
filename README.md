@@ -85,16 +85,17 @@ Then install `dist/sa-cowork-config-mcp.mcpb` in Claude Desktop and configure:
   - `sa-mise-session-start-b` resolves the sibling `sa-mise` plugin through a
     small helper script and invokes its `bin/mise` directly with no fallback
   - `sa-mise-session-start-c` runs on `UserPromptSubmit`, does not source
-    `CLAUDE_ENV_FILE`, and invokes bare `mise` only if the SessionStart exports
-    are already visible to later hooks
+    `CLAUDE_ENV_FILE`, and uses two separate probes so later hooks can verify
+    inherited arbitrary env visibility and bare `mise` resolution independently
 - the hooks are intentionally quiet now: they only execute the runtime probe and
   rely on the command exit status for success or failure
 - `CLAUDE_ENV_FILE` should be treated as the source of persisted session env;
   `sa-mise-session-start-c` probes whether that env becomes visible to later
   hook processes as well
 - every hook command appends one compact result line to:
-  `${CLAUDE_PROJECT_DIR}/.sa-mise-hook-results.log` with `plugin`, `event`,
-  `hook`, and `status`
+  `${CLAUDE_PROJECT_DIR}/.sa-mise-hook-results.log` with `ts`, `plugin`,
+  `event`, `hook`, `status`, targeted env visibility flags, and the related
+  `PATH` / Claude env values needed to correlate what each hook actually saw
 
 ## Skill
 
@@ -141,11 +142,11 @@ ${CLAUDE_PLUGIN_ROOT}/bin/mise --version
    probe env var into `CLAUDE_ENV_FILE`.
 6. Run a later Bash command and verify bare `mise` resolves through that
    exported PATH and the probe env var is present.
-7. Trigger `UserPromptSubmit` and verify `sa-mise-session-start-c` can run bare
-   `mise` without sourcing `CLAUDE_ENV_FILE`, proving those exports are visible
-   to later hook processes.
+7. Trigger `UserPromptSubmit` and verify `sa-mise-session-start-c` logs both a
+   probe for the inherited env var and a probe for bare `mise`, without sourcing
+   `CLAUDE_ENV_FILE`.
 8. Inspect `${CLAUDE_PROJECT_DIR}/.sa-mise-hook-results.log` to confirm which
-   hook probe succeeded or failed.
+   hook probe succeeded or failed and which env values were visible to it.
 
 ## Shared Resolver State
 

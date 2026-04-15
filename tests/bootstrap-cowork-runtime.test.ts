@@ -300,10 +300,10 @@ function contextHelperPath(pluginRoot: string): string {
   return join(pluginRoot, 'scripts', 'cowork-plugin-context.sh')
 }
 
-async function readHookCommand(
+async function readHookCommands(
   pluginRoot: string,
   event: 'SessionStart' | 'CwdChanged' | 'UserPromptSubmit',
-): Promise<string> {
+): Promise<string[]> {
   const hooksConfig = JSON.parse(
     await Deno.readTextFile(join(pluginRoot, 'hooks', 'hooks.json')),
   ) as {
@@ -315,7 +315,9 @@ async function readHookCommand(
     >
   }
 
-  return hooksConfig.hooks[event]?.[0]?.hooks[0]?.command ?? ''
+  return (hooksConfig.hooks[event] ?? []).flatMap((matcher) =>
+    matcher.hooks.map((hook) => hook.command)
+  )
 }
 
 function createEnv(
@@ -373,11 +375,16 @@ async function runHook(
   event: 'SessionStart' | 'CwdChanged' | 'UserPromptSubmit',
   env: Record<string, string>,
 ) {
-  const hookCommand = await readHookCommand(pluginRoot, event)
-  return await runCommand('sh', ['-eu', '-c', hookCommand], {
-    ...env,
-    CLAUDE_PLUGIN_ROOT: pluginRoot,
-  }, hookInputPayload(event))
+  const hookCommands = await readHookCommands(pluginRoot, event)
+
+  return await Promise.all(
+    hookCommands.map((hookCommand) =>
+      runCommand('sh', ['-eu', '-c', hookCommand], {
+        ...env,
+        CLAUDE_PLUGIN_ROOT: pluginRoot,
+      }, hookInputPayload(event))
+    ),
+  )
 }
 
 async function runBashCommandWithSessionEnv(
@@ -398,17 +405,21 @@ async function runHookWithSessionEnv(
   event: 'SessionStart' | 'CwdChanged' | 'UserPromptSubmit',
   env: Record<string, string>,
 ) {
-  const hookCommand = await readHookCommand(pluginRoot, event)
-  const wrappedCommand = [
-    'if [ -n "${CLAUDE_ENV_FILE:-}" ] && [ -f "${CLAUDE_ENV_FILE}" ]; then',
-    '  . "${CLAUDE_ENV_FILE}"',
-    'fi',
-    hookCommand,
-  ].join('\n')
-  return await runCommand('sh', ['-eu', '-c', wrappedCommand], {
-    ...env,
-    CLAUDE_PLUGIN_ROOT: pluginRoot,
-  }, hookInputPayload(event))
+  const hookCommands = await readHookCommands(pluginRoot, event)
+
+  return await Promise.all(hookCommands.map((hookCommand) => {
+    const wrappedCommand = [
+      'if [ -n "${CLAUDE_ENV_FILE:-}" ] && [ -f "${CLAUDE_ENV_FILE}" ]; then',
+      '  . "${CLAUDE_ENV_FILE}"',
+      'fi',
+      hookCommand,
+    ].join('\n')
+
+    return runCommand('sh', ['-eu', '-c', wrappedCommand], {
+      ...env,
+      CLAUDE_PLUGIN_ROOT: pluginRoot,
+    }, hookInputPayload(event))
+  }))
 }
 
 Deno.test('any peer plugin can cold-start and publish the shared runtime', async () => {
@@ -837,7 +848,7 @@ Deno.test('peer SessionStart hooks that do not depend on CLAUDE_ENV_FILE execute
       )
       env.CLAUDE_ENV_FILE = sessionEnvFile
 
-      const hookResult = await runHook(pluginRoot, 'SessionStart', env)
+      const [hookResult] = await runHook(pluginRoot, 'SessionStart', env)
 
       assertEquals(hookResult.success, true)
     }
@@ -856,9 +867,23 @@ Deno.test('peer SessionStart hooks that do not depend on CLAUDE_ENV_FILE execute
       hookLog,
       'plugin=sa-mise event=SessionStart hook=runtime-probe status=success',
     )
+    assertStringIncludes(hookLog, 'ts=')
+    assertStringIncludes(hookLog, 'path_has_plugin_bin=')
+    assertStringIncludes(hookLog, 'env_probe_present=')
+    assertStringIncludes(hookLog, 'claude_env_file_set=')
+    assertStringIncludes(hookLog, 'plugin_root_present=')
+    assertStringIncludes(hookLog, 'path=')
+    assertStringIncludes(hookLog, 'env_probe_value=')
+    assertStringIncludes(hookLog, 'claude_env_file=')
+    assertStringIncludes(hookLog, 'claude_plugin_root=')
+    assertStringIncludes(hookLog, 'claude_project_dir=')
     assertStringIncludes(
       hookLog,
-      'plugin=sa-mise-session-start-a event=SessionStart hook=path-probe status=success',
+      'plugin=sa-mise event=SessionStart hook=runtime-probe status=success path_has_plugin_bin=false env_probe_present=false claude_env_file_set=true plugin_root_present=true',
+    )
+    assertStringIncludes(
+      hookLog,
+      'plugin=sa-mise-session-start-a event=SessionStart hook=path-probe status=success path_has_plugin_bin=true env_probe_present=false claude_env_file_set=true plugin_root_present=true',
     )
     assertStringIncludes(
       hookLog,
@@ -889,14 +914,14 @@ Deno.test('sa-mise-session-start-b fails clearly when the sibling sa-mise plugin
       sharedRoot,
     )
 
-    const hookResult = await runHook(pluginRoot, 'SessionStart', env)
+    const [hookResult] = await runHook(pluginRoot, 'SessionStart', env)
     const stderr = new TextDecoder().decode(hookResult.stderr)
 
     assertEquals(hookResult.success, false)
     assertStringIncludes(stderr, 'sa-mise plugin not found')
     assertStringIncludes(
       await Deno.readTextFile(hookResultsLogPath(baseDir)),
-      'plugin=sa-mise-session-start-b event=SessionStart hook=sibling-probe status=failure exit_code=1',
+      'plugin=sa-mise-session-start-b event=SessionStart hook=sibling-probe status=failure exit_code=1 path_has_plugin_bin=false env_probe_present=false claude_env_file_set=true plugin_root_present=true',
     )
   } finally {
     await Deno.remove(baseDir, { recursive: true })
@@ -930,13 +955,16 @@ Deno.test('sa-mise writes PATH and probe env into CLAUDE_ENV_FILE and session-st
     )
     envC.CLAUDE_ENV_FILE = sessionEnvFile
 
-    const hookResultBefore = await runHook(
+    const hookResultsBefore = await runHook(
       fixtureC.pluginRoot,
       'UserPromptSubmit',
       envC,
     )
 
-    assertEquals(hookResultBefore.success, false)
+    assertEquals(hookResultsBefore.map((result) => result.success), [
+      false,
+      false,
+    ])
 
     const envSaMise = createEnv(
       baseDir,
@@ -947,7 +975,7 @@ Deno.test('sa-mise writes PATH and probe env into CLAUDE_ENV_FILE and session-st
     )
     envSaMise.CLAUDE_ENV_FILE = sessionEnvFile
 
-    const saMiseHookResult = await runHook(
+    const [saMiseHookResult] = await runHook(
       saMiseFixture.pluginRoot,
       'SessionStart',
       envSaMise,
@@ -979,21 +1007,29 @@ Deno.test('sa-mise writes PATH and probe env into CLAUDE_ENV_FILE and session-st
 
     assertEquals(probeVarResult.success, true)
 
-    const hookResultAfter = await runHookWithSessionEnv(
+    const hookResultsAfter = await runHookWithSessionEnv(
       fixtureC.pluginRoot,
       'UserPromptSubmit',
       envC,
     )
 
-    assertEquals(hookResultAfter.success, true)
+    assertEquals(hookResultsAfter.map((result) => result.success), [true, true])
     const hookLog = await Deno.readTextFile(hookResultsLogPath(baseDir))
     assertStringIncludes(
       hookLog,
-      'plugin=sa-mise-session-start-c event=UserPromptSubmit hook=inherited-env-and-path-probe status=failure exit_code=1',
+      'plugin=sa-mise-session-start-c event=UserPromptSubmit hook=probe-env-visible status=failure exit_code=1 path_has_plugin_bin=false env_probe_present=false claude_env_file_set=true plugin_root_present=true',
     )
     assertStringIncludes(
       hookLog,
-      'plugin=sa-mise-session-start-c event=UserPromptSubmit hook=inherited-env-and-path-probe status=success',
+      'plugin=sa-mise-session-start-c event=UserPromptSubmit hook=probe-path-visible status=failure exit_code=127 path_has_plugin_bin=false env_probe_present=false claude_env_file_set=true plugin_root_present=true',
+    )
+    assertStringIncludes(
+      hookLog,
+      'plugin=sa-mise-session-start-c event=UserPromptSubmit hook=probe-env-visible status=success path_has_plugin_bin=true env_probe_present=true claude_env_file_set=true plugin_root_present=true',
+    )
+    assertStringIncludes(
+      hookLog,
+      'plugin=sa-mise-session-start-c event=UserPromptSubmit hook=probe-path-visible status=success path_has_plugin_bin=true env_probe_present=true claude_env_file_set=true plugin_root_present=true',
     )
   } finally {
     await Deno.remove(baseDir, { recursive: true })
