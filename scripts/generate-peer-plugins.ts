@@ -101,7 +101,6 @@ function createPluginJson(plugin: PluginDefinition): string {
         author: {
           name: OWNER.name,
         },
-        hooks: './hooks/hooks.json',
       },
       null,
       2,
