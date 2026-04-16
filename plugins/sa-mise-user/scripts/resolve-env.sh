@@ -13,6 +13,18 @@ if [ -n "${CLAUDE_PLUGIN_DATA:-}" ]; then
   cache_file="${CLAUDE_PLUGIN_DATA}/state/sa-mise-plugin-root"
   mkdir -p "$(dirname "$cache_file")"
 fi
+if [ -n "${XDG_RUNTIME_DIR:-}" ]; then
+  export XDG_RUNTIME_DIR
+else
+  if [ -n "${CLAUDE_PLUGIN_DATA:-}" ]; then
+    xdg_runtime_dir="${CLAUDE_PLUGIN_DATA}/runtime/xdg"
+  else
+    xdg_runtime_dir="/tmp/runtime-$(id -u)"
+  fi
+  mkdir -p "$xdg_runtime_dir" || { echo "Failed to create XDG_RUNTIME_DIR at $xdg_runtime_dir" >&2; return 1 2>/dev/null || exit 1; }
+  chmod 700 "$xdg_runtime_dir" || { echo "Failed to secure XDG_RUNTIME_DIR at $xdg_runtime_dir" >&2; return 1 2>/dev/null || exit 1; }
+  export XDG_RUNTIME_DIR="$xdg_runtime_dir"
+fi
 mkdir -p "$(dirname "$resolve_log")"
 
 log_resolution() {

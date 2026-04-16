@@ -8,6 +8,13 @@ type HookDefinition = {
   command: string
 }
 
+type McpServerDefinition = {
+  name: string
+  command: string
+  args: string[]
+  env?: Record<string, string>
+}
+
 type PluginDefinition = {
   name: string
   description: string
@@ -15,6 +22,7 @@ type PluginDefinition = {
   skillDescription: string
   hookSummary: string
   hooks: HookDefinition[]
+  mcpServers?: McpServerDefinition[]
   sharedTemplateFiles?: string[]
   hookCommandPrefixScript?: string
   extraFiles?: Array<{ path: string; content: string; executable?: boolean }>
@@ -62,6 +70,18 @@ function createResolveEnvScript(): string {
     '  cache_file="${CLAUDE_PLUGIN_DATA}/' + RESOLVE_ENV_CACHE_RELATIVE_PATH +
     '"',
     '  mkdir -p "$(dirname "$cache_file")"',
+    'fi',
+    'if [ -n "${XDG_RUNTIME_DIR:-}" ]; then',
+    '  export XDG_RUNTIME_DIR',
+    'else',
+    '  if [ -n "${CLAUDE_PLUGIN_DATA:-}" ]; then',
+    '    xdg_runtime_dir="${CLAUDE_PLUGIN_DATA}/runtime/xdg"',
+    '  else',
+    '    xdg_runtime_dir="/tmp/runtime-$(id -u)"',
+    '  fi',
+    '  mkdir -p "$xdg_runtime_dir" || { echo "Failed to create XDG_RUNTIME_DIR at $xdg_runtime_dir" >&2; return 1 2>/dev/null || exit 1; }',
+    '  chmod 700 "$xdg_runtime_dir" || { echo "Failed to secure XDG_RUNTIME_DIR at $xdg_runtime_dir" >&2; return 1 2>/dev/null || exit 1; }',
+    '  export XDG_RUNTIME_DIR="$xdg_runtime_dir"',
     'fi',
     'mkdir -p "$(dirname "$resolve_log")"',
     '',
@@ -120,7 +140,21 @@ function createResolveEnvScript(): string {
   ].join('\n')
 }
 
-function createConsumerPlugin(name: string): PluginDefinition {
+function createContext7McpServer(): McpServerDefinition {
+  return {
+    name: 'context7',
+    command: 'sh',
+    args: [
+      '-lc',
+      '. "${CLAUDE_PLUGIN_ROOT:-}/scripts/resolve-env.sh" && exec mise exec nodejs@22 -- npx -y @upstash/context7-mcp',
+    ],
+  }
+}
+
+function createConsumerPlugin(
+  name: string,
+  options: { mcpServers?: McpServerDefinition[] } = {},
+): PluginDefinition {
   return {
     name,
     description:
@@ -139,6 +173,7 @@ function createConsumerPlugin(name: string): PluginDefinition {
           "mise exec deno@latest -- deno eval 'Deno.exit(0)' >/dev/null 2>&1",
       },
     ],
+    mcpServers: options.mcpServers,
     hookCommandPrefixScript: 'scripts/resolve-env.sh',
     extraFiles: [
       {
@@ -192,7 +227,9 @@ const PEER_PLUGINS: PluginDefinition[] = [
       },
     ],
   },
-  createConsumerPlugin('sa-mise-user'),
+  createConsumerPlugin('sa-mise-user', {
+    mcpServers: [createContext7McpServer()],
+  }),
   createConsumerPlugin('sa-mise-user-2'),
 ]
 
@@ -281,15 +318,42 @@ function createHooksJson(plugin: PluginDefinition): string {
   return `${JSON.stringify({ hooks: hooksByEvent }, null, 2)}\n`
 }
 
+function createMcpConfig(plugin: PluginDefinition): string | null {
+  if (!plugin.mcpServers?.length) {
+    return null
+  }
+
+  const mcpServers = Object.fromEntries(
+    plugin.mcpServers.map((server) => [
+      server.name,
+      Object.fromEntries(
+        Object.entries({
+          command: server.command,
+          args: server.args,
+          env: server.env,
+        }).filter(([_, value]) => value !== undefined),
+      ),
+    ]),
+  )
+
+  return `${JSON.stringify({ mcpServers }, null, 2)}\n`
+}
+
 function createSkillContent(plugin: PluginDefinition): string {
   const usageNotes = plugin.name === 'sa-mise-user'
     ? `- This fixture does not ship \`bin/mise\`.
 - Its authored hooks call bare \`mise\`, and generation rewrites them to source
   \`scripts/resolve-env.sh\` first.
+- It also publishes a plugin-local \`.mcp.json\` with a \`context7\` MCP entry
+  that shells through \`scripts/resolve-env.sh\` before running bare
+  \`mise exec nodejs@22 -- npx -y @upstash/context7-mcp\`.
 - \`scripts/resolve-env.sh\` resolves the sibling \`sa-mise\` plugin, exports
   \`SA_MISE_PLUGIN_ROOT\`, prepends \`<resolved-sa-mise>/bin\` to \`PATH\`, and
   caches the discovered owner path under
   \`\${CLAUDE_PLUGIN_DATA}/` + RESOLVE_ENV_CACHE_RELATIVE_PATH + `\`.
+- When \`XDG_RUNTIME_DIR\` is unset, \`scripts/resolve-env.sh\` creates it under
+  \`\${CLAUDE_PLUGIN_DATA}/runtime/xdg\` when available, otherwise under
+  \`/tmp/runtime-$(id -u)\`, and secures it with mode \`0700\`.
 - Resolution attempts append compact cache hit/scan logs to
   \`\${CLAUDE_PROJECT_DIR}/` + RESOLVE_ENV_LOG_NAME + `\`.`
     : `- This fixture ships the canonical generated \`bin/mise\` shim.
@@ -388,6 +452,7 @@ async function removeIfExists(path: string): Promise<void> {
 async function generatePeerPlugin(plugin: PluginDefinition): Promise<void> {
   const pluginRoot = join(repoRoot, 'plugins', plugin.name)
   const includedSharedFiles = new Set(plugin.sharedTemplateFiles ?? [])
+  const mcpConfig = createMcpConfig(plugin)
 
   for (const relativePath of SHARED_TEMPLATE_FILES) {
     if (includedSharedFiles.has(relativePath)) {
@@ -401,6 +466,14 @@ async function generatePeerPlugin(plugin: PluginDefinition): Promise<void> {
     join(pluginRoot, 'hooks', 'hooks.json'),
     createHooksJson(plugin),
   )
+  if (mcpConfig) {
+    await writeFile(
+      join(pluginRoot, '.mcp.json'),
+      mcpConfig,
+    )
+  } else {
+    await removeIfExists(join(pluginRoot, '.mcp.json'))
+  }
 
   for (const file of plugin.extraFiles ?? []) {
     await writeFile(

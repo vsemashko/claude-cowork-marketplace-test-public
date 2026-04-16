@@ -44,6 +44,7 @@ Deno.test('generated plugins match the minimal owner-and-consumer architecture',
   )
 
   assertEquals(await exists(join(saMiseRoot, 'bin', 'mise')), true)
+  assertEquals(await exists(join(saMiseRoot, '.mcp.json')), false)
   assertEquals(
     await exists(join(saMiseRoot, 'scripts', 'cowork-shared-runtime.sh')),
     true,
@@ -63,6 +64,7 @@ Deno.test('generated plugins match the minimal owner-and-consumer architecture',
   assertEquals(await exists(join(saMiseRoot, 'hooks', 'reply-sir.sh')), true)
 
   assertEquals(await exists(join(saMiseUserRoot, 'bin', 'mise')), false)
+  assertEquals(await exists(join(saMiseUserRoot, '.mcp.json')), true)
   assertEquals(
     await exists(join(saMiseUserRoot, 'scripts', 'cowork-shared-runtime.sh')),
     false,
@@ -80,6 +82,7 @@ Deno.test('generated plugins match the minimal owner-and-consumer architecture',
     true,
   )
   assertEquals(await exists(join(saMiseUser2Root, 'bin', 'mise')), false)
+  assertEquals(await exists(join(saMiseUser2Root, '.mcp.json')), false)
   assertEquals(
     await exists(join(saMiseUser2Root, 'scripts', 'resolve-env.sh')),
     true,
@@ -167,11 +170,26 @@ Deno.test('generated plugins match the minimal owner-and-consumer architecture',
     saMiseUserCommand.includes('find-sa-mise-sibling.sh'),
     false,
   )
+  const saMiseUserMcp = JSON.parse(
+    await Deno.readTextFile(join(saMiseUserRoot, '.mcp.json')),
+  ) as {
+    mcpServers: Record<string, { command?: string; args?: string[] }>
+  }
+  assertEquals(Object.keys(saMiseUserMcp.mcpServers), ['context7'])
+  assertEquals(saMiseUserMcp.mcpServers.context7?.command, 'sh')
+  assertEquals(saMiseUserMcp.mcpServers.context7?.args, [
+    '-lc',
+    '. "${CLAUDE_PLUGIN_ROOT:-}/scripts/resolve-env.sh" && exec mise exec nodejs@22 -- npx -y @upstash/context7-mcp',
+  ])
   const resolveEnvScript = await Deno.readTextFile(
     join(saMiseUserRoot, 'scripts', 'resolve-env.sh'),
   )
   assertStringIncludes(resolveEnvScript, '.sa-mise-resolve-env.log')
   assertStringIncludes(resolveEnvScript, 'state/sa-mise-plugin-root')
+  assertStringIncludes(resolveEnvScript, 'XDG_RUNTIME_DIR')
+  assertStringIncludes(resolveEnvScript, '${CLAUDE_PLUGIN_DATA}/runtime/xdg')
+  assertStringIncludes(resolveEnvScript, '/tmp/runtime-$(id -u)')
+  assertStringIncludes(resolveEnvScript, 'chmod 700 "$xdg_runtime_dir"')
   assertStringIncludes(resolveEnvScript, 'source=%s')
   assertStringIncludes(
     resolveEnvScript,
@@ -195,6 +213,7 @@ Deno.test('config MCPB bundle exists and keeps the expected config contract', as
   }
 
   assertEquals(await exists(join(bundleRoot, '.mcpbignore')), true)
+  assertEquals(await exists(join(bundleRoot, '.mcp.json')), false)
   assertEquals(await exists(join(bundleRoot, 'manifest.json')), true)
   assertEquals(await exists(join(bundleRoot, 'server', 'index.ts')), true)
   assertEquals(await exists(join(bundleRoot, 'server', 'package.json')), true)

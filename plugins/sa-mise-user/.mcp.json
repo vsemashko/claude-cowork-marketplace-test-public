@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "context7": {
+      "command": "sh",
+      "args": [
+        "-lc",
+        ". \"${CLAUDE_PLUGIN_ROOT:-}/scripts/resolve-env.sh\" && exec mise exec nodejs@22 -- npx -y @upstash/context7-mcp"
+      ]
+    }
+  }
+}

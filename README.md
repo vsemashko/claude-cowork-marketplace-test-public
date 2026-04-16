@@ -7,7 +7,8 @@ plugins and one separately packaged MCPB bundle:
   bootstrap logic
 - `sa-mise-user`: a lightweight consumer plugin with no own `bin/mise`; its
   authored hooks use bare `mise`, and generation rewrites those hooks to resolve
-  the sibling `sa-mise` plugin first
+  the sibling `sa-mise` plugin first; it also publishes a plugin-local Context7
+  MCP
 - `sa-mise-user-2`: a second lightweight consumer plugin that exercises the same
   generated resolution and caching flow as `sa-mise-user`
 - `sa-cowork-config-mcp`: a separate MCPB extension for config handling tests
@@ -83,9 +84,15 @@ Then install `dist/sa-cowork-config-mcp.mcpb` in Claude Desktop and configure:
   - find the sibling `sa-mise` plugin
   - prepend `<resolved-sa-mise>/bin` to `PATH`
   - export `SA_MISE_PLUGIN_ROOT`
+  - export `XDG_RUNTIME_DIR`, creating `${CLAUDE_PLUGIN_DATA}/runtime/xdg` first
+    when it is unset and plugin data is available, otherwise falling back to
+    `/tmp/runtime-$(id -u)`
   - fail clearly if the sibling owner plugin cannot be found
 - The authored consumer hooks stay simple and assume bare `mise` is already
   available.
+- `sa-mise-user` also publishes `.mcp.json` with a `context7` stdio server that
+  shells through `scripts/resolve-env.sh` and then runs:
+  `mise exec nodejs@22 -- npx -y @upstash/context7-mcp`
 - The resolver caches the discovered owner path at:
   `${CLAUDE_PLUGIN_DATA}/state/sa-mise-plugin-root`
 - Resolution attempts append compact cache-hit/scan logs to:
@@ -125,6 +132,10 @@ mise --version
 The emitted hook commands source `scripts/resolve-env.sh` first so the sibling
 `sa-mise` binary becomes available on `PATH`.
 
+`sa-mise-user` uses the same resolver for its generated `context7` MCP entry, so
+the MCP inherits sibling `sa-mise` resolution and the `XDG_RUNTIME_DIR` fallback
+before invoking `mise`.
+
 ## Manual Acceptance
 
 1. Install the marketplace from this GitHub repo.
@@ -136,17 +147,23 @@ The emitted hook commands source `scripts/resolve-env.sh` first so the sibling
    - emits the prompt/context instruction to always reply with `, sir`
 5. Trigger `SessionStart` for both consumer plugins and verify their hooks
    succeed even though neither plugin ships `bin/mise`.
-6. Confirm the first consumer run resolves the sibling owner plugin by scan,
+6. Verify `sa-mise-user/.mcp.json` exposes a `context7` MCP entry that shells
+   through `scripts/resolve-env.sh` before running
+   `mise exec nodejs@22 -- npx
+   -y @upstash/context7-mcp`.
+7. Confirm the first consumer run resolves the sibling owner plugin by scan,
    writes the cache file, and that later runs reuse the cached path.
-7. Inspect `${CLAUDE_PROJECT_DIR}/.sa-mise-resolve-env.log` and confirm you see
+8. Inspect `${CLAUDE_PROJECT_DIR}/.sa-mise-resolve-env.log` and confirm you see
    `source=scan` on first resolution and `source=cache` on later reuse.
-8. Verify the command succeeds and creates:
+9. Verify the command succeeds and creates:
    - `${CLAUDE_PLUGIN_DATA}/runtime-mirror/mise/${platform}/bin/mise`
    - `<shared-root>/.claude/plugins/shared-runtime/mise/${platform}/current/mise`
    - `<shared-root>/.claude/plugins/shared-runtime/mise/${platform}/registry.json`
    - `${CLAUDE_PLUGIN_DATA}/runtime-mirror/mise/${platform}/install-status.env`
    - `${CLAUDE_PLUGIN_DATA}/state/cowork-plugin-context.env`
    - `${CLAUDE_PLUGIN_DATA}/state/sa-mise-plugin-root`
+   - `${CLAUDE_PLUGIN_DATA}/runtime/xdg` when `XDG_RUNTIME_DIR` was initially
+     unset
 
 ## Shared Resolver State
 
