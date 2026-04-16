@@ -176,10 +176,11 @@ Deno.test('generated plugins match the minimal owner-and-consumer architecture',
     mcpServers: Record<string, { command?: string; args?: string[] }>
   }
   assertEquals(Object.keys(saMiseUserMcp.mcpServers), ['context7'])
-  assertEquals(saMiseUserMcp.mcpServers.context7?.command, 'sh')
-  assertEquals(saMiseUserMcp.mcpServers.context7?.args, [
-    './scripts/context7-mcp.sh',
-  ])
+  assertEquals(
+    saMiseUserMcp.mcpServers.context7?.command,
+    '${CLAUDE_PLUGIN_ROOT}/scripts/context7-mcp.sh',
+  )
+  assertEquals(saMiseUserMcp.mcpServers.context7?.args, [])
   assertEquals(
     await exists(join(saMiseUserRoot, 'scripts', 'context7-mcp.sh')),
     true,

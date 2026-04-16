@@ -78,21 +78,22 @@ printf 'args=%s\n' "$*" >> "$CAPTURE_FILE"
       }
     }
 
-    const output = await new Deno.Command(
-      mcpConfig.mcpServers.context7.command,
-      {
-        args: mcpConfig.mcpServers.context7.args,
-        cwd: consumerRoot,
-        env: {
-          ...Deno.env.toObject(),
-          CAPTURE_FILE: captureFile,
-          CLAUDE_PLUGIN_DATA: pluginDataDir,
-          CLAUDE_PROJECT_DIR: projectDir,
-        },
-        stdout: 'piped',
-        stderr: 'piped',
+    const command = mcpConfig.mcpServers.context7.command.replace(
+      '${CLAUDE_PLUGIN_ROOT}',
+      consumerRoot,
+    )
+
+    const output = await new Deno.Command(command, {
+      args: mcpConfig.mcpServers.context7.args,
+      env: {
+        ...Deno.env.toObject(),
+        CAPTURE_FILE: captureFile,
+        CLAUDE_PLUGIN_DATA: pluginDataDir,
+        CLAUDE_PROJECT_DIR: projectDir,
       },
-    ).output()
+      stdout: 'piped',
+      stderr: 'piped',
+    }).output()
 
     assertEquals(output.success, true)
 
@@ -120,9 +121,11 @@ printf 'args=%s\n' "$*" >> "$CAPTURE_FILE"
       join(projectDir, '.sa-mise-resolve-env.log'),
     )
     assertStringIncludes(resolutionLog, 'source=scan')
-    assertStringIncludes(
-      resolutionLog,
-      `resolved_root=${await Deno.realPath(siblingRoot)}`,
+    const siblingRealPath = await Deno.realPath(siblingRoot)
+    assertEquals(
+      resolutionLog.includes(`resolved_root=${siblingRoot}`) ||
+        resolutionLog.includes(`resolved_root=${siblingRealPath}`),
+      true,
     )
     assertExists(output.stderr)
   } finally {

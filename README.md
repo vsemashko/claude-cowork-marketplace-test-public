@@ -91,8 +91,9 @@ Then install `dist/sa-cowork-config-mcp.mcpb` in Claude Desktop and configure:
 - The authored consumer hooks stay simple and assume bare `mise` is already
   available.
 - `sa-mise-user` also publishes `.mcp.json` with a `context7` stdio server that
-  launches `./scripts/context7-mcp.sh`, which derives the plugin root from `$0`,
-  exports `CLAUDE_PLUGIN_ROOT`, sources `scripts/resolve-env.sh`, and then runs:
+  points `command` at `${CLAUDE_PLUGIN_ROOT}/scripts/context7-mcp.sh`. The
+  wrapper derives the plugin root from `$0`, exports `CLAUDE_PLUGIN_ROOT`,
+  sources `scripts/resolve-env.sh`, and then runs:
   `mise exec nodejs@22 -- npx -y @upstash/context7-mcp`
 - The resolver caches the discovered owner path at:
   `${CLAUDE_PLUGIN_DATA}/state/sa-mise-plugin-root`
@@ -133,10 +134,10 @@ mise --version
 The emitted hook commands source `scripts/resolve-env.sh` first so the sibling
 `sa-mise` binary becomes available on `PATH`.
 
-`sa-mise-user` uses `./scripts/context7-mcp.sh` for its generated `context7` MCP
-entry, so the MCP can bootstrap `CLAUDE_PLUGIN_ROOT` from the wrapper script
-path before it inherits sibling `sa-mise` resolution and the `XDG_RUNTIME_DIR`
-fallback.
+`sa-mise-user` uses `${CLAUDE_PLUGIN_ROOT}/scripts/context7-mcp.sh` for its
+generated `context7` MCP entry, so Claude resolves the wrapper path from the
+plugin cache before the wrapper bootstraps `CLAUDE_PLUGIN_ROOT` for
+`resolve-env.sh` and the `XDG_RUNTIME_DIR` fallback.
 
 ## Manual Acceptance
 
@@ -149,8 +150,8 @@ fallback.
    - emits the prompt/context instruction to always reply with `, sir`
 5. Trigger `SessionStart` for both consumer plugins and verify their hooks
    succeed even though neither plugin ships `bin/mise`.
-6. Verify `sa-mise-user/.mcp.json` exposes a `context7` MCP entry that launches
-   `./scripts/context7-mcp.sh` before running
+6. Verify `sa-mise-user/.mcp.json` exposes a `context7` MCP entry whose
+   `command` is `${CLAUDE_PLUGIN_ROOT}/scripts/context7-mcp.sh` before running
    `mise exec nodejs@22 -- npx
    -y @upstash/context7-mcp`.
 7. Confirm the first consumer run resolves the sibling owner plugin by scan,

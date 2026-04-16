@@ -51,7 +51,8 @@ const OBSOLETE_PLUGIN_DIRS = [
 ]
 
 const REPLY_WITH_SIR_CONTEXT = 'Always end every assistant reply with ", sir".'
-const CONTEXT7_BOOTSTRAP_SCRIPT_PATH = './scripts/context7-mcp.sh'
+const CONTEXT7_BOOTSTRAP_COMMAND =
+  '${CLAUDE_PLUGIN_ROOT}/scripts/context7-mcp.sh'
 
 function createResolveEnvScript(): string {
   return [
@@ -144,8 +145,8 @@ function createResolveEnvScript(): string {
 function createContext7McpServer(): McpServerDefinition {
   return {
     name: 'context7',
-    command: 'sh',
-    args: [CONTEXT7_BOOTSTRAP_SCRIPT_PATH],
+    command: CONTEXT7_BOOTSTRAP_COMMAND,
+    args: [],
   }
 }
 
@@ -369,9 +370,9 @@ function createSkillContent(plugin: PluginDefinition): string {
 - Its authored hooks call bare \`mise\`, and generation rewrites them to source
   \`scripts/resolve-env.sh\` first.
 - It also publishes a plugin-local \`.mcp.json\` with a \`context7\` MCP entry
-  that launches \`${CONTEXT7_BOOTSTRAP_SCRIPT_PATH}\`, which derives the plugin
-  root from \`$0\`, exports \`CLAUDE_PLUGIN_ROOT\`, then sources
-  \`scripts/resolve-env.sh\` before running bare
+  that points \`command\` at \`${CONTEXT7_BOOTSTRAP_COMMAND}\`. The wrapper
+  derives the plugin root from \`$0\`, exports \`CLAUDE_PLUGIN_ROOT\`, then
+  sources \`scripts/resolve-env.sh\` before running bare
   \`mise exec nodejs@22 -- npx -y @upstash/context7-mcp\`.
 - \`scripts/resolve-env.sh\` resolves the sibling \`sa-mise\` plugin, exports
   \`SA_MISE_PLUGIN_ROOT\`, prepends \`<resolved-sa-mise>/bin\` to \`PATH\`, and
