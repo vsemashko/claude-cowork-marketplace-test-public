@@ -25,6 +25,11 @@ Deno.test('generated sa-mise-user context7 MCP resolves sibling sa-mise and sets
       join(consumerRoot, 'scripts', 'resolve-env.sh'),
     )
     await Deno.chmod(join(consumerRoot, 'scripts', 'resolve-env.sh'), 0o755)
+    await Deno.copyFile(
+      join(REPO_ROOT, 'plugins', 'sa-mise-user', 'scripts', 'context7-mcp.sh'),
+      join(consumerRoot, 'scripts', 'context7-mcp.sh'),
+    )
+    await Deno.chmod(join(consumerRoot, 'scripts', 'context7-mcp.sh'), 0o755)
 
     await Deno.writeTextFile(
       join(consumerRoot, '.claude-plugin', 'plugin.json'),
@@ -77,11 +82,11 @@ printf 'args=%s\n' "$*" >> "$CAPTURE_FILE"
       mcpConfig.mcpServers.context7.command,
       {
         args: mcpConfig.mcpServers.context7.args,
+        cwd: consumerRoot,
         env: {
           ...Deno.env.toObject(),
           CAPTURE_FILE: captureFile,
           CLAUDE_PLUGIN_DATA: pluginDataDir,
-          CLAUDE_PLUGIN_ROOT: consumerRoot,
           CLAUDE_PROJECT_DIR: projectDir,
         },
         stdout: 'piped',
@@ -106,13 +111,19 @@ printf 'args=%s\n' "$*" >> "$CAPTURE_FILE"
     const cachedOwnerPath = await Deno.readTextFile(
       join(pluginDataDir, 'state', 'sa-mise-plugin-root'),
     )
-    assertEquals(cachedOwnerPath.trim(), siblingRoot)
+    assertEquals(
+      await Deno.realPath(cachedOwnerPath.trim()),
+      await Deno.realPath(siblingRoot),
+    )
 
     const resolutionLog = await Deno.readTextFile(
       join(projectDir, '.sa-mise-resolve-env.log'),
     )
     assertStringIncludes(resolutionLog, 'source=scan')
-    assertStringIncludes(resolutionLog, `resolved_root=${siblingRoot}`)
+    assertStringIncludes(
+      resolutionLog,
+      `resolved_root=${await Deno.realPath(siblingRoot)}`,
+    )
     assertExists(output.stderr)
   } finally {
     await Deno.remove(tempDir, { recursive: true })

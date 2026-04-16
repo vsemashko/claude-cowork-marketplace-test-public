@@ -178,9 +178,27 @@ Deno.test('generated plugins match the minimal owner-and-consumer architecture',
   assertEquals(Object.keys(saMiseUserMcp.mcpServers), ['context7'])
   assertEquals(saMiseUserMcp.mcpServers.context7?.command, 'sh')
   assertEquals(saMiseUserMcp.mcpServers.context7?.args, [
-    '-lc',
-    '. "${CLAUDE_PLUGIN_ROOT:-}/scripts/resolve-env.sh" && exec mise exec nodejs@22 -- npx -y @upstash/context7-mcp',
+    './scripts/context7-mcp.sh',
   ])
+  assertEquals(
+    await exists(join(saMiseUserRoot, 'scripts', 'context7-mcp.sh')),
+    true,
+  )
+  const context7BootstrapScript = await Deno.readTextFile(
+    join(saMiseUserRoot, 'scripts', 'context7-mcp.sh'),
+  )
+  assertStringIncludes(
+    context7BootstrapScript,
+    'export CLAUDE_PLUGIN_ROOT="$plugin_root"',
+  )
+  assertStringIncludes(
+    context7BootstrapScript,
+    '. "$plugin_root/scripts/resolve-env.sh"',
+  )
+  assertStringIncludes(
+    context7BootstrapScript,
+    'exec mise exec nodejs@22 -- npx -y @upstash/context7-mcp',
+  )
   const resolveEnvScript = await Deno.readTextFile(
     join(saMiseUserRoot, 'scripts', 'resolve-env.sh'),
   )

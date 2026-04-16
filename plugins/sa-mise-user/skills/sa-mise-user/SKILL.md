@@ -31,8 +31,9 @@ chaining.
 - Its authored hooks call bare `mise`, and generation rewrites them to source
   `scripts/resolve-env.sh` first.
 - It also publishes a plugin-local `.mcp.json` with a `context7` MCP entry that
-  shells through `scripts/resolve-env.sh` before running bare
-  `mise exec nodejs@22 -- npx -y @upstash/context7-mcp`.
+  launches `./scripts/context7-mcp.sh`, which derives the plugin root from `$0`,
+  exports `CLAUDE_PLUGIN_ROOT`, then sources `scripts/resolve-env.sh` before
+  running bare `mise exec nodejs@22 -- npx -y @upstash/context7-mcp`.
 - `scripts/resolve-env.sh` resolves the sibling `sa-mise` plugin, exports
   `SA_MISE_PLUGIN_ROOT`, prepends `<resolved-sa-mise>/bin` to `PATH`, and caches
   the discovered owner path under

@@ -51,6 +51,7 @@ const OBSOLETE_PLUGIN_DIRS = [
 ]
 
 const REPLY_WITH_SIR_CONTEXT = 'Always end every assistant reply with ", sir".'
+const CONTEXT7_BOOTSTRAP_SCRIPT_PATH = './scripts/context7-mcp.sh'
 
 function createResolveEnvScript(): string {
   return [
@@ -144,16 +145,16 @@ function createContext7McpServer(): McpServerDefinition {
   return {
     name: 'context7',
     command: 'sh',
-    args: [
-      '-lc',
-      '. "${CLAUDE_PLUGIN_ROOT:-}/scripts/resolve-env.sh" && exec mise exec nodejs@22 -- npx -y @upstash/context7-mcp',
-    ],
+    args: [CONTEXT7_BOOTSTRAP_SCRIPT_PATH],
   }
 }
 
 function createConsumerPlugin(
   name: string,
-  options: { mcpServers?: McpServerDefinition[] } = {},
+  options: {
+    mcpServers?: McpServerDefinition[]
+    extraFiles?: Array<{ path: string; content: string; executable?: boolean }>
+  } = {},
 ): PluginDefinition {
   return {
     name,
@@ -181,8 +182,24 @@ function createConsumerPlugin(
         executable: true,
         content: createResolveEnvScript(),
       },
+      ...(options.extraFiles ?? []),
     ],
   }
+}
+
+function createContext7BootstrapScript(): string {
+  return [
+    '#!/bin/sh',
+    '',
+    'set -eu',
+    '',
+    'script_dir="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"',
+    'plugin_root="$(CDPATH= cd -- "$script_dir/.." && pwd)"',
+    'export CLAUDE_PLUGIN_ROOT="$plugin_root"',
+    '',
+    '. "$plugin_root/scripts/resolve-env.sh"',
+    'exec mise exec nodejs@22 -- npx -y @upstash/context7-mcp',
+  ].join('\n')
 }
 
 const PEER_PLUGINS: PluginDefinition[] = [
@@ -229,6 +246,13 @@ const PEER_PLUGINS: PluginDefinition[] = [
   },
   createConsumerPlugin('sa-mise-user', {
     mcpServers: [createContext7McpServer()],
+    extraFiles: [
+      {
+        path: 'scripts/context7-mcp.sh',
+        executable: true,
+        content: createContext7BootstrapScript(),
+      },
+    ],
   }),
   createConsumerPlugin('sa-mise-user-2'),
 ]
@@ -345,7 +369,9 @@ function createSkillContent(plugin: PluginDefinition): string {
 - Its authored hooks call bare \`mise\`, and generation rewrites them to source
   \`scripts/resolve-env.sh\` first.
 - It also publishes a plugin-local \`.mcp.json\` with a \`context7\` MCP entry
-  that shells through \`scripts/resolve-env.sh\` before running bare
+  that launches \`${CONTEXT7_BOOTSTRAP_SCRIPT_PATH}\`, which derives the plugin
+  root from \`$0\`, exports \`CLAUDE_PLUGIN_ROOT\`, then sources
+  \`scripts/resolve-env.sh\` before running bare
   \`mise exec nodejs@22 -- npx -y @upstash/context7-mcp\`.
 - \`scripts/resolve-env.sh\` resolves the sibling \`sa-mise\` plugin, exports
   \`SA_MISE_PLUGIN_ROOT\`, prepends \`<resolved-sa-mise>/bin\` to \`PATH\`, and
